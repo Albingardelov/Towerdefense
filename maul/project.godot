@@ -15,6 +15,10 @@ run/main_scene="uid://qh6hx35eryyj"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
 
+[autoload]
+
+GameState="*res://autoload/GameState.gd"
+
 [input_devices]
 
 pointing/emulate_touch_from_mouse=true

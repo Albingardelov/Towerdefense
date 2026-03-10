@@ -1,6 +1,6 @@
 ```
 # Maze TD — Game Design Document
-**Version 0.2 | Draft**
+**Version 0.4 | Uppdaterad mars 2026**
 
 ---
 
@@ -21,7 +21,7 @@ Det är inte egentligen ett Tower Defense-spel i första hand. Det är ett **maz
 3. Fiender spawnar uppifrån och söker sig neråt via kortaste möjliga väg
 4. Torn attackerar fiender längs vägen
 5. Dödade fiender ger guld — guld används för att köpa fler torn
-6. Var 10:e våg spawnar flygande fiender som ignorerar mazen helt
+6. Var 5:e våg spawnar flygande fiender som ignorerar mazen helt; var 10:e tillkommer en boss
 7. Räknaren ökar för varje fiende som når fram — nå gränsen och spelet är förlorat
 
 ---
@@ -36,16 +36,28 @@ Varje guds tornuppsättning skapar en unik maze-estetik.
 > Maze-estetik: Täta, symmetriska spiraler
 > Färgpalett: Blå och guld
 
-| Tier | Namn | Storlek | Färg | Hex |
-|------|------|---------|------|-----|
-| Torn 1 | Grundsten | 1×1 | Grå/silver | #8A9BA8 |
-| Torn 2 | Åskledare | 1×1 | Blå | #4A90D9 |
-| Torn 3 | Stormvakt | 1×1 | Mörkblå | #1A3A6A |
-| Ultimate | Mjölner | 2×2 | Guld | #F0C030 |
+**Status: ✅ Implementerad**
 
+| Tier | Namn | Storlek | Kostnad | Skada | Räckvidd | Eldkraft | AOE | Luftmultiplikator |
+|------|------|---------|---------|-------|----------|----------|-----|-------------------|
+| Torn 1 | Cornerstone | 1×1 | 100g | 30 | 2.5 | 1.05/s | Splash 0.4 | ×2.0 |
+| Torn 2 | Lightning Rod | 1×1 | 250g | 73 | 4.5 | 0.85/s | Nej | ×2.0 |
+| Torn 3 | Storm Guard | 1×1 | 600g | 190 | 3.5 | 0.80/s | Nej | ×2.0 |
+| Ultimate | Mjolnir | 2×2 | 2000g | 10 | 6.0 | 20.0/s | Nej | ×1.0 |
+| Bonus | Tempest | 1×1 | 450g | 65 | 3.5 | 0.55/s | Splash 1.5 | ×1.0 |
+
+> Mjolnir fungerar som ett snabbeldsgevär med låg skada per skott men extremt hög eldtakt.
+> Tempest är ett AOE-torn med stor splashradie — lagom mot täta grupper.
 > Mjölner är guld för att sticka ut tydligt i mazen — ju starkare torn, ju mer distinkt färg.
 
-**Status: Byggs först — fungerar som template för övriga gudar**
+**Tornfärger (implementerade):**
+| Namn | Fill | Stroke |
+|------|------|--------|
+| Cornerstone | Grå | Ljussilver |
+| Lightning Rod | Mörkblå | Levande blå |
+| Storm Guard | Väldigt mörkblå | Ljusblå |
+| Mjolnir | Mörkguld | Ljusguld |
+| Tempest | Mörklila | Levande lila |
 
 ---
 
@@ -108,7 +120,11 @@ Exakt fördelning per gud bestäms under torndesign-fasen.
 
 ### 4.1 Grundgrid
 
-Spelplanen består av ett rutsystem där torn placeras. Varje torn tar upp minst en ruta. Exakt gridstorlek bestäms under prototyp-fasen.
+**Implementerat:**
+- **16 × 22 rutor**, 30 px per ruta
+- Spelyta: 480 × 660 px | UI-panel: 160 px bred (höger)
+- Totalt fönster: 640 × 660 px
+- Ingång: kolumn 8, rad 0 (topp) | Utgång: kolumn 8, rad 21 (botten)
 
 ### 4.2 Offset-placering (kärnan i spelet)
 
@@ -122,9 +138,11 @@ Torn kan placeras på gränsen mellan två rutor, så att halva tornet sitter i 
 
 ### 4.3 Pathfinding-regler
 
+**Implementerat:** BFS på dubbel upplösning (32 × 44 sub-grid). Varje helruta delas i 2×2 sub-celler, vilket gör att offset-torn blockerar exakt de sub-celler de täcker.
+
 Fiender hittar alltid den **kortaste** möjliga vägen genom mazen. Spelarens uppgift är att bygga mazen så slingrig att kortaste vägen ändå blir lång.
 
-Om ett torn blockerar den sista möjliga vägen får det inte placeras där.
+Om ett torn blockerar den sista möjliga vägen får det inte placeras där (valideras live innan placering).
 
 ---
 
@@ -145,23 +163,31 @@ Start- och slutpunkt är konfigurerbara i koden — olika kartor kräver ingen n
 
 ### 6.1 Vågmönster
 
-| Våg | Typ | Notering |
-|-----|-----|----------|
-| 1–4 | Markfiender | Följer kortaste vägen genom mazen |
-| 5 | Flygande fiender | Ignorerar mazen, flyger rakt |
-| 6–9 | Markfiender | |
-| 10 | Flygande fiender + Boss | Bossar flyger med flygfienderna |
-| 11–14 | Markfiender | |
-| 15 | Flygande fiender | |
-| 16–19 | Markfiender | |
-| 20 | Flygande fiender + Boss | |
-| ... | ... | Var 5:e våg = flyg, var 10:e = flyg + boss |
+**Implementerat:** 40 unika vågdefinitioner (WC3-inspirerade). Varje våg har namn, HP, hastighet, antal, bounty, våg-bonus, armor-typ och special-flagga.
+
+Speciella vågor:
+- **SWARM** (Einherjar v9, Berserker v16) — extra många fiender
+- **MAGIC IMMUNE** (Huldra v17, Death Rune v28, Blood Demon v34, Jormungandr v39)
+- **INVISIBLE** (Shadow v21, Soul Reaper v37)
+- **BOSS** (Rime Giant v20, Ice King v25, Bone King v30, Fafnir v35)
+- **FINAL BOSS** (Ymir v40 — 60 000 HP, 500g bounty, 1 200g våg-bonus)
+- **AIR WAVE** (Valravn v6, Fossegrim v11, Nokken v14, Sea Serpent v19, Hraesvelgr v23, Winter Wyrm v27, Vidofnir v32, Fafnir v35, Jormungandr v39)
+
+**Konvertering från WC3:** Hastighet = WC3_speed × (30/270). HP = WC3_hp × 0.5.
+
+**Exempeldata:**
+- Wave 1 Draugr: 12 st, 75 HP, 30 px/s, 8g bounty
+- Wave 9 Einherjar (SWARM): 20 st, 400 HP, 36 px/s
+- Wave 40 Ymir (FINAL BOSS): 1 st, 60 000 HP, 24 px/s, divine armor
 
 ### 6.2 Flygande fiender
 
-Flygande fiender flyger kortaste vägen och ignorerar hela mazen. Det är "ett andra spel ovanpå mazen" — spelaren måste tänka på lufttäckning även när de bygger sin vackra maze.
+**Implementerat:** Flygfiender flyger direkt från ingång till utgång, ignorerar hela mazen. Ritas som diamanter (4-hörn polygon). Bossar är orange och större (radius 12 vs 7).
 
-Tematiskt passar Valkyrior, Sleipner eller Huginn & Muninn som flygande fiender.
+- Flygfiender: blå diamant, hastighet × 1.25
+- Boss: orange diamant, hastighet × 1.15, 5× guldvärde, radius 12
+
+Tematiskt passar Valkyrior, Sleipner eller Huginn & Muninn som flygande fiender (framtida grafik).
 
 ---
 
@@ -181,52 +207,48 @@ Spelaren väljer svårighetsgrad innan omgången börjar. Presenteras som en rä
 
 ## 8. Ekonomi
 
-- Dödade fiender ger guld
-- Guld används för att köpa torn (Tier 1–3) och ultimate
-- Dyrare torn = kraftfullare effekt och/eller större fotavtryck
+**Implementerat:**
 
-Exakta siffror och balansering bestäms under speltest-fasen när Tors tornkit är byggt.
+- Startguld: 500g (200g vid omstart)
+- Dödade fiender ger bounty per kill (8–500g, WC3-baserat, ökar per våg)
+- Guldbonus för avslutad våg: 35–1200g (ökar per våg, WC3-baserat)
+- Sälja torn: 75% återbetalning (högerklick) — samma som WC3
+- "Rensa alla" säljer alla torn med 75% refund
+- Guld används för att köpa torn — kostnad 100–2000g
+
+Balansering pågår under speltest-fasen.
 
 ---
 
 ## 9. Fiendelogik & Rörelse
 
-### 9.1 Kollision och trängsel
+### 9.1 Rörelse och kollision
 
-Fiender har faktisk kollision med varandra — de är cirklar som inte kan överlappa. I trånga korridorer betyder det:
+Fiender följer waypoints utan kollision (WC3-stil) — de kan överlappa varandra. Spawn-intervall: 0.5s. Fiender rör sig med konstant hastighet utan svängsaktning.
 
-- Fiender trycker på varandra och bildar naturliga köer
-- Fiender bakifrån bromsas av de framför
-- Täta mazes skapar organiskt trafikkaos utan extra kod
-- En perfekt tight maze ger spelaren en gratis fördel via trängsel
-
-> En snygg maze straffar fiender dubbelt — längre väg OCH trängsel.
-
-### 9.2 Hastighetsförlust i svängar
-
-Fiender tappar hastighet i proportion till hur skarp sväng de gör. Det belönar mazes med många täta svängar.
-
-| Sväng | Hastighetsmultiplikator |
-|-------|------------------------|
-| Rakt fram (0°) | × 1.0 |
-| Normal sväng (90°) | × 0.7 |
-| U-sväng (180°) | × 0.4 |
-
-> En rak korridor låter fiender springa igenom i full hastighet. En snygg spiral saktar ner dem organiskt — utan slow-torn.
+Aktiva fiender reroutes INTE när torn placeras mid-wave — de behåller sina ursprungliga waypoints. Nyspawnade fiender plockar alltid upp den aktuella stigen.
 
 ---
 
 ## 10. Projektiler
 
-Varje torn skjuter en projektil mot närmaste fiende inom räckvidd.
+**Implementerat:**
+
+Varje torn skjuter en projektil mot bästa fiende inom räckvidd.
+
+**Targeting-prioritet:**
+1. Markfiende längst framme på pathen (högst waypoint-index)
+2. Om inga markfiender: flygfiende närmast utgången
 
 **Logik:**
 1. Tornet söker igenom alla aktiva fiender varje frame
-2. Närmaste fiende inom range låses som mål
-3. En projektil skapas och rör sig mot målet varje frame
+2. Bäste fiende inom range låses som mål
+3. En projektil skapas och rör sig mot målet (180 px/s)
 4. Vid träff: fienden tar skada, projektilen försvinner
 
-Projektiler följer fienden om den rör sig. I prototypen är projektilen en enda pixel — färg matchar tornets färg.
+Projektiler följer fienden om den rör sig. Ritas som en 4px cirkel — färg matchar tornets stroke-färg.
+
+**AOE-torn** (Cornerstone & Tempest): vid träff skapas en explosion-ring och alla fiender inom splashradie tar full skada.
 
 ---
 
@@ -262,13 +284,14 @@ Eftersom stolthetskänslan är spelets kärna måste det finnas sätt att visa u
 
 | Steg | Vad | Status |
 |------|-----|--------|
-| 1 | Grid + offset-system | ⬅ Nästa |
-| 2 | Pathfinding (kortaste väg + blockerings-validering) | Kommande |
-| 3 | Tors fyra torn med färger och projektiler | Kommande |
-| 4 | Fiender, vågor, räknare | Kommande |
-| 5 | Ekonomi och balansering | Kommande |
-| 6 | Loki, Oden, Freja | Kommande |
-| 7 | Fler kartor, multiplayer, polish | Framtida |
+| 1 | Grid + offset-system | ✅ Klart |
+| 2 | Pathfinding (kortaste väg + blockerings-validering) | ✅ Klart |
+| 3 | Tors tornkit med färger och projektiler | ✅ Klart (5 torn) |
+| 4 | Fiender, vågor, räknare | ✅ Klart |
+| 5 | Ekonomi: sälja torn (75%), auto-waves, 40-vågs WC3-data | ✅ Klart |
+| 6 | Gudval + UI för tornuppsättning per gud | ⬅ Nästa |
+| 7 | Loki, Oden, Freja | Kommande |
+| 8 | Fler kartor, multiplayer, polish | Framtida |
 
 ---
 
@@ -276,11 +299,43 @@ Eftersom stolthetskänslan är spelets kärna måste det finnas sätt att visa u
 
 | Fråga | Notering |
 |-------|----------|
-| Exakta torn-stats och kostnader | Bestäms under balansering |
-| Antal vågor totalt — begränsat eller oändligt? | Öppen |
-| Fiende-teman och namn | Valkyrior, jättar, troll? |
-| Exakt gridstorlek | Bestäms under prototyp |
+| Exakta torn-stats och kostnader | Grundvärden implementerade, finjustering pågår |
+| Antal vågor totalt — begränsat eller oändligt? | 20 definierade, loop-cap på 20. Öppet om mer variation behövs |
+| Fiende-teman och namn | Valkyrior, jättar, troll? Nuläge: generiska cirklar/diamanter |
 | Uppgradera på plats eller riva och bygga nytt? | Öppen |
+| Tempest — hör den till Tor eller en annan gud? | Lila färg passar möjligen Loki bättre |
+| Startguld (500) vs omstartguld (200) — medvetet? | Bör förmodligen vara samma |
+| Gudval-skärm och tornlåsning per gud | Saknas ännu — all torn tillgängliga nu |
+
+## 16. UI-layout (nuläge)
+
+```
+┌─────────────────────────┬──────────┐
+│                         │ Wave: —  │
+│                         │ Gold: 500│
+│   Spelyta               │ Esc: 0/50│
+│   480 × 660 px          │──────────│
+│   (16×22 rutor á 30px)  │ [Torn 1] │
+│                         │ [Torn 2] │
+│   IN  (topp, kol 8)     │ [Torn 3] │
+│   OUT (botten, kol 8)   │ [Mjolnir]│
+│                         │ [Tempest]│
+│                         │──────────│
+│                         │Wave 1 60s│
+│                         │[Send Erl]│
+│                         │[E][M][H] │
+│                         │──────────│
+│                         │ Inspect  │
+│                         │ info     │
+│                         │ Sell:75g │
+│                         │[Rensa]   │
+└─────────────────────────┴──────────┘
 ```
 
-Vi ses i helgen! 🛠️
+**Kontroller:**
+- Vänsterklick: placera torn / inspektera torn
+- Högerklick: sälj torn (75% återbetalning)
+- Hovring: visar ghost + räckviddsring + vägvalidering live
+- Vågor startar automatiskt (60s första, 30s därefter)
+- "Send Early" skickar nästa våg omedelbart
+```

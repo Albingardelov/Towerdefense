@@ -1,0 +1,531 @@
+{
+  "meta": {
+    "game": "Wintermaul Solo",
+    "description": "Game data based on classic Wintermaul community documentation and changelogs",
+    "waves_total": 40,
+    "notes": "HP/stats based on Normal difficulty. Speed is WC3 units/sec. Attack cooldown in seconds."
+  },
+
+  "game_settings": {
+    "start_gold": 65,
+    "gold_per_wave_base": 28,
+    "gold_bonus_all_killed": 10,
+    "interest_threshold_gold": 100,
+    "interest_rate": 0.10,
+    "sell_refund_percent": 0.75,
+    "wave_prep_time_seconds": 30,
+    "wave_duration_seconds": 30,
+    "creep_spawn_interval_seconds": 0.5,
+    "difficulties": {
+      "easy":   { "lives": 40, "creep_hp_multiplier": 0.75 },
+      "normal": { "lives": 20, "creep_hp_multiplier": 1.0 },
+      "hard":   { "lives": 10, "creep_hp_multiplier": 1.5 },
+      "insane": { "lives": 5,  "creep_hp_multiplier": 2.0 }
+    }
+  },
+
+  "armor_type_damage_table": {
+    "description": "Damage multiplier by attack_type vs armor_type. Value = fraction of base damage dealt.",
+    "attack_types": ["normal", "pierce", "magic", "siege", "chaos", "hero"],
+    "armor_types": {
+      "unarmored": { "normal": 1.00, "pierce": 1.50, "magic": 1.00, "siege": 1.00, "chaos": 1.00, "hero": 1.00 },
+      "light":     { "normal": 1.00, "pierce": 2.00, "magic": 0.75, "siege": 0.50, "chaos": 1.00, "hero": 1.00 },
+      "medium":    { "normal": 0.75, "pierce": 1.00, "magic": 0.75, "siege": 1.50, "chaos": 1.00, "hero": 1.00 },
+      "heavy":     { "normal": 1.00, "pierce": 0.75, "magic": 2.00, "siege": 1.00, "chaos": 1.00, "hero": 1.00 },
+      "fortified": { "normal": 0.70, "pierce": 0.35, "magic": 0.35, "siege": 1.50, "chaos": 1.00, "hero": 0.50 },
+      "divine":    { "normal": 0.05, "pierce": 0.05, "magic": 0.05, "siege": 0.05, "chaos": 1.00, "hero": 0.50 },
+      "hero":      { "normal": 1.00, "pierce": 0.50, "magic": 0.75, "siege": 0.50, "chaos": 1.00, "hero": 1.00 }
+    }
+  },
+
+  "waves": [
+    { "wave": 1,  "name": "Murloc",          "hp": 150,    "armor": 0,  "armor_type": "unarmored", "move_speed": 270, "count": 12, "bounty": 8,   "flies": false, "special": null },
+    { "wave": 2,  "name": "Gnoll",            "hp": 220,    "armor": 0,  "armor_type": "unarmored", "move_speed": 270, "count": 12, "bounty": 9,   "flies": false, "special": null },
+    { "wave": 3,  "name": "Kobold",           "hp": 310,    "armor": 1,  "armor_type": "light",     "move_speed": 270, "count": 14, "bounty": 10,  "flies": false, "special": null },
+    { "wave": 4,  "name": "Bandit",           "hp": 430,    "armor": 1,  "armor_type": "light",     "move_speed": 270, "count": 14, "bounty": 11,  "flies": false, "special": null },
+    { "wave": 5,  "name": "Vicious Gnoll",    "hp": 580,    "armor": 2,  "armor_type": "light",     "move_speed": 300, "count": 16, "bounty": 12,  "flies": false, "special": null },
+    { "wave": 6,  "name": "Harpy",            "hp": 420,    "armor": 1,  "armor_type": "unarmored", "move_speed": 350, "count": 14, "bounty": 13,  "flies": true,  "special": "flying" },
+    { "wave": 7,  "name": "Ogre",             "hp": 900,    "armor": 2,  "armor_type": "medium",    "move_speed": 250, "count": 10, "bounty": 16,  "flies": false, "special": null },
+    { "wave": 8,  "name": "Centaur",          "hp": 1100,   "armor": 3,  "armor_type": "medium",    "move_speed": 280, "count": 12, "bounty": 17,  "flies": false, "special": null },
+    { "wave": 9,  "name": "Skeleton",         "hp": 800,    "armor": 0,  "armor_type": "unarmored", "move_speed": 320, "count": 20, "bounty": 14,  "flies": false, "special": "mass" },
+    { "wave": 10, "name": "Troll",            "hp": 1400,   "armor": 3,  "armor_type": "medium",    "move_speed": 270, "count": 12, "bounty": 20,  "flies": false, "special": null },
+    { "wave": 11, "name": "Vulture",          "hp": 900,    "armor": 2,  "armor_type": "light",     "move_speed": 380, "count": 14, "bounty": 18,  "flies": true,  "special": "flying_fast" },
+    { "wave": 12, "name": "Golem",            "hp": 2200,   "armor": 4,  "armor_type": "heavy",     "move_speed": 240, "count": 8,  "bounty": 28,  "flies": false, "special": null },
+    { "wave": 13, "name": "Furbolg",          "hp": 2600,   "armor": 4,  "armor_type": "heavy",     "move_speed": 260, "count": 10, "bounty": 26,  "flies": false, "special": null },
+    { "wave": 14, "name": "Dragon Whelp",     "hp": 1800,   "armor": 3,  "armor_type": "medium",    "move_speed": 400, "count": 12, "bounty": 24,  "flies": true,  "special": "flying_fast" },
+    { "wave": 15, "name": "Hydra",            "hp": 3500,   "armor": 5,  "armor_type": "heavy",     "move_speed": 250, "count": 8,  "bounty": 35,  "flies": false, "special": null },
+    { "wave": 16, "name": "Ghoul",            "hp": 2000,   "armor": 2,  "armor_type": "medium",    "move_speed": 350, "count": 18, "bounty": 22,  "flies": false, "special": "mass_fast" },
+    { "wave": 17, "name": "Banshee",          "hp": 2800,   "armor": 0,  "armor_type": "unarmored", "move_speed": 300, "count": 16, "bounty": 28,  "flies": false, "special": "magic_immune" },
+    { "wave": 18, "name": "Rock Golem",       "hp": 5000,   "armor": 6,  "armor_type": "heavy",     "move_speed": 230, "count": 6,  "bounty": 45,  "flies": false, "special": null },
+    { "wave": 19, "name": "Naga",             "hp": 3200,   "armor": 4,  "armor_type": "medium",    "move_speed": 420, "count": 10, "bounty": 36,  "flies": true,  "special": "flying_fast" },
+    { "wave": 20, "name": "Abomination",      "hp": 7000,   "armor": 6,  "armor_type": "heavy",     "move_speed": 240, "count": 8,  "bounty": 55,  "flies": false, "special": "boss_wave" },
+    { "wave": 21, "name": "Shade",            "hp": 4000,   "armor": 2,  "armor_type": "unarmored", "move_speed": 320, "count": 14, "bounty": 40,  "flies": false, "special": "invisible" },
+    { "wave": 22, "name": "Doom Guard",       "hp": 6500,   "armor": 5,  "armor_type": "heavy",     "move_speed": 260, "count": 8,  "bounty": 52,  "flies": false, "special": null },
+    { "wave": 23, "name": "Gryphon",          "hp": 5000,   "armor": 4,  "armor_type": "medium",    "move_speed": 430, "count": 10, "bounty": 46,  "flies": true,  "special": "flying" },
+    { "wave": 24, "name": "Infernal",         "hp": 9000,   "armor": 7,  "armor_type": "heavy",     "move_speed": 240, "count": 6,  "bounty": 65,  "flies": false, "special": null },
+    { "wave": 25, "name": "Frostborn",        "hp": 12000,  "armor": 7,  "armor_type": "fortified", "move_speed": 230, "count": 6,  "bounty": 80,  "flies": false, "special": "boss_wave" },
+    { "wave": 26, "name": "Voidwalker",       "hp": 8000,   "armor": 5,  "armor_type": "heavy",     "move_speed": 280, "count": 10, "bounty": 70,  "flies": false, "special": null },
+    { "wave": 27, "name": "Frost Wyrm",       "hp": 7000,   "armor": 5,  "armor_type": "heavy",     "move_speed": 380, "count": 8,  "bounty": 75,  "flies": true,  "special": "flying" },
+    { "wave": 28, "name": "Lich",             "hp": 10000,  "armor": 4,  "armor_type": "unarmored", "move_speed": 270, "count": 8,  "bounty": 80,  "flies": false, "special": "magic_immune" },
+    { "wave": 29, "name": "Ancient Hydra",    "hp": 14000,  "armor": 8,  "armor_type": "fortified", "move_speed": 230, "count": 5,  "bounty": 90,  "flies": false, "special": null },
+    { "wave": 30, "name": "Skeleton King",    "hp": 18000,  "armor": 8,  "armor_type": "fortified", "move_speed": 240, "count": 6,  "bounty": 100, "flies": false, "special": "boss_wave" },
+    { "wave": 31, "name": "Doom",             "hp": 15000,  "armor": 7,  "armor_type": "heavy",     "move_speed": 260, "count": 7,  "bounty": 95,  "flies": false, "special": null },
+    { "wave": 32, "name": "Chimera",          "hp": 12000,  "armor": 6,  "armor_type": "medium",    "move_speed": 400, "count": 8,  "bounty": 105, "flies": true,  "special": "flying" },
+    { "wave": 33, "name": "Crypt Lord",       "hp": 20000,  "armor": 9,  "armor_type": "fortified", "move_speed": 230, "count": 5,  "bounty": 115, "flies": false, "special": null },
+    { "wave": 34, "name": "Blood Demon",      "hp": 18000,  "armor": 7,  "armor_type": "heavy",     "move_speed": 270, "count": 6,  "bounty": 120, "flies": false, "special": "magic_immune" },
+    { "wave": 35, "name": "Ancient Dragon",   "hp": 16000,  "armor": 7,  "armor_type": "heavy",     "move_speed": 420, "count": 6,  "bounty": 130, "flies": true,  "special": "flying_boss" },
+    { "wave": 36, "name": "Fallen Keeper",    "hp": 25000,  "armor": 9,  "armor_type": "fortified", "move_speed": 240, "count": 5,  "bounty": 145, "flies": false, "special": null },
+    { "wave": 37, "name": "Soul Harvester",   "hp": 22000,  "armor": 6,  "armor_type": "unarmored", "move_speed": 290, "count": 7,  "bounty": 140, "flies": false, "special": "invisible" },
+    { "wave": 38, "name": "Abyssal Terror",   "hp": 30000,  "armor": 10, "armor_type": "fortified", "move_speed": 235, "count": 5,  "bounty": 165, "flies": false, "special": null },
+    { "wave": 39, "name": "Archon",           "hp": 25000,  "armor": 8,  "armor_type": "heavy",     "move_speed": 430, "count": 6,  "bounty": 180, "flies": true,  "special": "flying_magic_immune" },
+    { "wave": 40, "name": "Duke Wintermaul",  "hp": 120000, "armor": 10, "armor_type": "divine",    "move_speed": 220, "count": 1,  "bounty": 500, "flies": false, "special": "final_boss" }
+  ],
+
+  "races": {
+    "human": {
+      "description": "Balanced all-around race. Good for mazing. Mix of siege and normal damage.",
+      "towers": [
+        {
+          "id": "scout_tower",
+          "name": "Scout Tower",
+          "cost": 15,
+          "sell_value": 11,
+          "damage_min": 10, "damage_max": 12,
+          "damage_type": "normal",
+          "attack_cooldown": 1.0,
+          "dps": 11,
+          "range": 700,
+          "splash_radius": null,
+          "special": null
+        },
+        {
+          "id": "guard_tower",
+          "name": "Guard Tower",
+          "cost": 30,
+          "sell_value": 22,
+          "damage_min": 22, "damage_max": 26,
+          "damage_type": "normal",
+          "attack_cooldown": 1.0,
+          "dps": 24,
+          "range": 750,
+          "splash_radius": null,
+          "special": null
+        },
+        {
+          "id": "cannon_tower",
+          "name": "Cannon Tower",
+          "cost": 75,
+          "sell_value": 56,
+          "damage_min": 55, "damage_max": 65,
+          "damage_type": "siege",
+          "attack_cooldown": 1.8,
+          "dps": 33,
+          "range": 700,
+          "splash_radius": 150,
+          "special": "splash"
+        },
+        {
+          "id": "arcane_tower",
+          "name": "Arcane Tower",
+          "cost": 120,
+          "sell_value": 90,
+          "damage_min": 70, "damage_max": 80,
+          "damage_type": "magic",
+          "attack_cooldown": 1.2,
+          "dps": 63,
+          "range": 800,
+          "splash_radius": null,
+          "special": null
+        },
+        {
+          "id": "mortar_tower",
+          "name": "Mortar Tower",
+          "cost": 175,
+          "sell_value": 131,
+          "damage_min": 130, "damage_max": 150,
+          "damage_type": "siege",
+          "attack_cooldown": 2.2,
+          "dps": 64,
+          "range": 750,
+          "splash_radius": 200,
+          "special": "splash"
+        },
+        {
+          "id": "sniper_tower",
+          "name": "Sniper Tower",
+          "cost": 220,
+          "sell_value": 165,
+          "damage_min": 200, "damage_max": 230,
+          "damage_type": "pierce",
+          "attack_cooldown": 1.5,
+          "dps": 143,
+          "range": 950,
+          "splash_radius": null,
+          "special": "long_range"
+        },
+        {
+          "id": "war_factory",
+          "name": "War Factory",
+          "cost": 350,
+          "sell_value": 262,
+          "damage_min": 280, "damage_max": 320,
+          "damage_type": "normal",
+          "attack_cooldown": 1.3,
+          "dps": 231,
+          "range": 800,
+          "splash_radius": 100,
+          "special": "splash"
+        },
+        {
+          "id": "siege_engine",
+          "name": "Siege Engine",
+          "cost": 500,
+          "sell_value": 375,
+          "damage_min": 450, "damage_max": 550,
+          "damage_type": "siege",
+          "attack_cooldown": 2.0,
+          "dps": 250,
+          "range": 850,
+          "splash_radius": 250,
+          "special": "heavy_splash"
+        }
+      ]
+    },
+
+    "ice": {
+      "description": "Slow-focused race. Lower damage but applies slows and freezes. Very strong in long mazes.",
+      "towers": [
+        {
+          "id": "frost_shard",
+          "name": "Frost Shard",
+          "cost": 20,
+          "sell_value": 15,
+          "damage_min": 8, "damage_max": 10,
+          "damage_type": "normal",
+          "attack_cooldown": 1.0,
+          "dps": 9,
+          "range": 700,
+          "splash_radius": null,
+          "special": "slow_30pct_2s"
+        },
+        {
+          "id": "ice_spire",
+          "name": "Ice Spire",
+          "cost": 40,
+          "sell_value": 30,
+          "damage_min": 18, "damage_max": 22,
+          "damage_type": "normal",
+          "attack_cooldown": 1.0,
+          "dps": 20,
+          "range": 725,
+          "splash_radius": null,
+          "special": "slow_35pct_2s"
+        },
+        {
+          "id": "blizzard_tower",
+          "name": "Blizzard Tower",
+          "cost": 100,
+          "sell_value": 75,
+          "damage_min": 45, "damage_max": 55,
+          "damage_type": "magic",
+          "attack_cooldown": 1.5,
+          "dps": 33,
+          "range": 750,
+          "splash_radius": 175,
+          "special": "aoe_slow"
+        },
+        {
+          "id": "permafrost",
+          "name": "Permafrost",
+          "cost": 180,
+          "sell_value": 135,
+          "damage_min": 90, "damage_max": 110,
+          "damage_type": "normal",
+          "attack_cooldown": 1.3,
+          "dps": 77,
+          "range": 800,
+          "splash_radius": null,
+          "special": "slow_50pct_3s"
+        },
+        {
+          "id": "water_sprayer",
+          "name": "Water Sprayer",
+          "cost": 250,
+          "sell_value": 187,
+          "damage_min": 120, "damage_max": 140,
+          "damage_type": "normal",
+          "attack_cooldown": 1.0,
+          "dps": 130,
+          "range": 775,
+          "splash_radius": null,
+          "special": "freeze_5s"
+        },
+        {
+          "id": "glacial_tomb",
+          "name": "Glacial Tomb",
+          "cost": 400,
+          "sell_value": 300,
+          "damage_min": 220, "damage_max": 260,
+          "damage_type": "magic",
+          "attack_cooldown": 1.8,
+          "dps": 133,
+          "range": 825,
+          "splash_radius": 200,
+          "special": "aoe_freeze"
+        }
+      ]
+    },
+
+    "fire": {
+      "description": "High magic damage with burn effects. Excellent against heavy-armored units.",
+      "towers": [
+        {
+          "id": "torch",
+          "name": "Torch",
+          "cost": 20,
+          "sell_value": 15,
+          "damage_min": 12, "damage_max": 15,
+          "damage_type": "magic",
+          "attack_cooldown": 0.9,
+          "dps": 15,
+          "range": 675,
+          "splash_radius": null,
+          "special": null
+        },
+        {
+          "id": "flame_tower",
+          "name": "Flame Tower",
+          "cost": 50,
+          "sell_value": 37,
+          "damage_min": 30, "damage_max": 36,
+          "damage_type": "magic",
+          "attack_cooldown": 0.9,
+          "dps": 37,
+          "range": 700,
+          "splash_radius": null,
+          "special": null
+        },
+        {
+          "id": "lava_pit",
+          "name": "Lava Pit",
+          "cost": 110,
+          "sell_value": 82,
+          "damage_min": 60, "damage_max": 70,
+          "damage_type": "magic",
+          "attack_cooldown": 1.4,
+          "dps": 46,
+          "range": 725,
+          "splash_radius": 100,
+          "special": "burn_dot"
+        },
+        {
+          "id": "inferno",
+          "name": "Inferno",
+          "cost": 200,
+          "sell_value": 150,
+          "damage_min": 130, "damage_max": 150,
+          "damage_type": "magic",
+          "attack_cooldown": 1.5,
+          "dps": 93,
+          "range": 775,
+          "splash_radius": 150,
+          "special": "splash"
+        },
+        {
+          "id": "dragons_breath",
+          "name": "Dragon's Breath",
+          "cost": 320,
+          "sell_value": 240,
+          "damage_min": 240, "damage_max": 280,
+          "damage_type": "chaos",
+          "attack_cooldown": 1.6,
+          "dps": 163,
+          "range": 800,
+          "splash_radius": 175,
+          "special": "cone_aoe"
+        },
+        {
+          "id": "volcano",
+          "name": "Volcano",
+          "cost": 500,
+          "sell_value": 375,
+          "damage_min": 400, "damage_max": 500,
+          "damage_type": "magic",
+          "attack_cooldown": 2.5,
+          "dps": 180,
+          "range": 850,
+          "splash_radius": 300,
+          "special": "massive_aoe"
+        }
+      ]
+    },
+
+    "undead": {
+      "description": "Poison and magic damage. Debuffs enemies. Strong against unarmored and magic-vulnerable targets.",
+      "towers": [
+        {
+          "id": "crypt",
+          "name": "Crypt",
+          "cost": 20,
+          "sell_value": 15,
+          "damage_min": 10, "damage_max": 13,
+          "damage_type": "normal",
+          "attack_cooldown": 1.0,
+          "dps": 12,
+          "range": 700,
+          "splash_radius": null,
+          "special": null
+        },
+        {
+          "id": "necromancer",
+          "name": "Necromancer",
+          "cost": 55,
+          "sell_value": 41,
+          "damage_min": 28, "damage_max": 34,
+          "damage_type": "magic",
+          "attack_cooldown": 1.1,
+          "dps": 28,
+          "range": 725,
+          "splash_radius": null,
+          "special": "poison_dot"
+        },
+        {
+          "id": "shadow_spire",
+          "name": "Shadow Spire",
+          "cost": 120,
+          "sell_value": 90,
+          "damage_min": 70, "damage_max": 80,
+          "damage_type": "normal",
+          "attack_cooldown": 0.9,
+          "dps": 83,
+          "range": 750,
+          "splash_radius": null,
+          "special": null
+        },
+        {
+          "id": "banshee_tower",
+          "name": "Banshee Tower",
+          "cost": 200,
+          "sell_value": 150,
+          "damage_min": 100, "damage_max": 120,
+          "damage_type": "magic",
+          "attack_cooldown": 1.2,
+          "dps": 92,
+          "range": 800,
+          "splash_radius": null,
+          "special": "attack_debuff"
+        },
+        {
+          "id": "abomination_tower",
+          "name": "Abomination",
+          "cost": 340,
+          "sell_value": 255,
+          "damage_min": 220, "damage_max": 260,
+          "damage_type": "chaos",
+          "attack_cooldown": 1.8,
+          "dps": 133,
+          "range": 750,
+          "splash_radius": 175,
+          "special": "splash_slow"
+        },
+        {
+          "id": "lich_tower",
+          "name": "Lich Tower",
+          "cost": 550,
+          "sell_value": 412,
+          "damage_min": 380, "damage_max": 420,
+          "damage_type": "magic",
+          "attack_cooldown": 2.0,
+          "dps": 200,
+          "range": 875,
+          "splash_radius": 225,
+          "special": "aoe_frost_nova"
+        }
+      ]
+    },
+
+    "nature": {
+      "description": "Cheapest maze tower. Roots enemies. Aura buffs nearby towers. Best for utility and long mazes.",
+      "towers": [
+        {
+          "id": "wisp_tower",
+          "name": "Wisp Tower",
+          "cost": 15,
+          "sell_value": 11,
+          "damage_min": 7, "damage_max": 9,
+          "damage_type": "normal",
+          "attack_cooldown": 1.0,
+          "dps": 8,
+          "range": 650,
+          "splash_radius": null,
+          "special": null
+        },
+        {
+          "id": "ancient",
+          "name": "Ancient",
+          "cost": 45,
+          "sell_value": 33,
+          "damage_min": 22, "damage_max": 28,
+          "damage_type": "normal",
+          "attack_cooldown": 1.1,
+          "dps": 23,
+          "range": 700,
+          "splash_radius": null,
+          "special": null
+        },
+        {
+          "id": "treant",
+          "name": "Treant",
+          "cost": 90,
+          "sell_value": 67,
+          "damage_min": 50, "damage_max": 60,
+          "damage_type": "normal",
+          "attack_cooldown": 1.2,
+          "dps": 46,
+          "range": 725,
+          "splash_radius": null,
+          "special": "roots_2s"
+        },
+        {
+          "id": "dryad",
+          "name": "Dryad",
+          "cost": 160,
+          "sell_value": 120,
+          "damage_min": 90, "damage_max": 110,
+          "damage_type": "pierce",
+          "attack_cooldown": 1.0,
+          "dps": 100,
+          "range": 800,
+          "splash_radius": null,
+          "special": "dispel_magic"
+        },
+        {
+          "id": "ancient_of_war",
+          "name": "Ancient of War",
+          "cost": 280,
+          "sell_value": 210,
+          "damage_min": 180, "damage_max": 220,
+          "damage_type": "normal",
+          "attack_cooldown": 1.4,
+          "dps": 143,
+          "range": 825,
+          "splash_radius": null,
+          "special": "aura_plus15pct_dmg_range300"
+        },
+        {
+          "id": "world_tree",
+          "name": "World Tree",
+          "cost": 500,
+          "sell_value": 375,
+          "damage_min": 350, "damage_max": 400,
+          "damage_type": "magic",
+          "attack_cooldown": 2.2,
+          "dps": 170,
+          "range": 900,
+          "splash_radius": 275,
+          "special": "aoe_aura_plus20pct_dmg"
+        }
+      ]
+    }
+  }
+}
