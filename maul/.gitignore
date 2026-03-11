@@ -1,4 +1,4 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
-wintermaul_data.json
+.wintermaul_data.json

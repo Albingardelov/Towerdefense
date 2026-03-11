@@ -126,14 +126,15 @@ static func _spawn_enemy(etype: int, cell: int) -> void:
 			return
 		var waypoints := Pathfinder.path_to_pixels(GameState.current_path, cell)
 		GameState.enemies.append({
-			pos       = waypoints[0],
-			waypoints = waypoints,
-			wp_idx    = 0,
-			flying    = false,
-			is_boss   = is_boss,
-			hp        = hp,
-			max_hp    = hp,
-			speed     = speed,
-			hit_flash = 0.0,
-			dead      = false,
+			pos        = waypoints[0],
+			waypoints  = waypoints,
+			wp_idx     = 0,
+			flying     = false,
+			is_boss    = is_boss,
+			hp         = hp,
+			max_hp     = hp,
+			speed      = speed,
+			hit_flash  = 0.0,
+			dead       = false,
+			face_right = true,
 		})

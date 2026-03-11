@@ -1,12 +1,13 @@
 class_name Pathfinder
 
 const COLS  := 16
-const ROWS  := 22
 const SCOLS := COLS * 2
-const SROWS := ROWS * 2
+
+static var ROWS:  int      = 22
+static var SROWS: int      = ROWS * 2
+static var EXIT:  Vector2i = Vector2i(8, ROWS - 1)
 
 const ENTRY := Vector2i(8, 0)
-const EXIT  := Vector2i(8, 21)
 
 # ============================================================
 # Public API

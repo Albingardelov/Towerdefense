@@ -26,5 +26,15 @@ const STROKE := [
 	Color(0.850, 0.420, 1.000),   # Tempest       — vivid purple
 ]
 
+const ANIM_SHEET := [
+	"res://assets/Part 1/03.png",   # Cornerstone  — vit/silver gnista
+	"res://assets/Part 2/69.png",   # Lightning Rod — blå flamma
+	"res://assets/Part 3/113.png",  # Storm Guard   — isblå effekt
+	"res://assets/Part 4/174.png",  # Mjolnir       — orange/guld
+	"res://assets/Part 6/273.png",  # Tempest       — lila kaos
+]
+const ANIM_ROW  := [0, 2, 1, 3, 0]
+const ANIM_FPS  := [6.0, 8.0, 7.0, 10.0, 5.0]
+
 static func count() -> int:
 	return NAMES.size()

@@ -5,14 +5,18 @@ extends Node2D
 # ============================================================
 
 const COLS       := 16
-const ROWS       := 22
-const CELL       := 30
-const VIEWPORT_W := 640
+const VIEWPORT_W := 480
 const VIEWPORT_H := 660
 
-const COL_BG      := Color(0.051, 0.067, 0.090)
-const COL_GRID    := Color(0.110, 0.129, 0.157)
-const COL_SUBGRID := Color(1.0, 1.0, 1.0, 0.04)
+var ROWS: int = 22
+var CELL: int = 30
+
+const GRID_TOP := 52   # pixels the top bar occupies
+const GRID_BOT := 44   # pixels the bottom toggle occupies
+
+const COL_BG      := Color(0.055, 0.048, 0.042)   # mörk stenfog
+const COL_GRID    := Color(0.0, 0.0, 0.0, 0.25)  # subtil svart linje ovanpå texturen
+const COL_SUBGRID := Color(1.0, 1.0, 1.0, 0.03)
 const COL_ENTRY   := Color(0.29, 1.0, 0.29)
 const COL_EXIT    := Color(1.0, 0.29, 0.29)
 const COL_INVALID := Color(1.0, 0.29, 0.29)
@@ -30,26 +34,73 @@ const PROJ_SPEED := 180.0
 var _hud:       HUD
 var _font:      Font
 var _sfx_shoot: AudioStreamPlayer
+var _proj_tex:   Texture2D
+var _tower_texs: Array = []   # Texture2D per tower type
+var _orc_walk_tex:  Texture2D
+var _orc_death_tex: Texture2D
+var _floor_tex: Texture2D
+var _world_env: WorldEnvironment
+
+var _has_drag:  bool = false   # true once a drag event was received this placement
+var _drag_right: bool = false  # false = offset left, true = offset right
+
 
 # ============================================================
 # Ready
 # ============================================================
 
 func _ready() -> void:
-	get_window().size     = Vector2i(VIEWPORT_W, VIEWPORT_H)
-	get_window().min_size = Vector2i(VIEWPORT_W, VIEWPORT_H)
+	if OS.get_name() == "Windows" or OS.get_name() == "Linux" or OS.get_name() == "macOS":
+		get_window().size     = Vector2i(VIEWPORT_W, VIEWPORT_H)
+		get_window().min_size = Vector2i(VIEWPORT_W, VIEWPORT_H)
+
+	# Fit grid to actual viewport, leaving room for top/bottom bars
+	var vp_size := get_viewport_rect().size
+	CELL = int(vp_size.x / COLS)
+	ROWS = int((vp_size.y - GRID_TOP - GRID_BOT) / CELL)
+	position = Vector2(0, GRID_TOP)
+	Pathfinder.ROWS  = ROWS
+	Pathfinder.SROWS = ROWS * 2
+	Pathfinder.EXIT  = Vector2i(Pathfinder.ENTRY.x, ROWS - 1)
+
 	_font = ThemeDB.fallback_font
+
+	var sfx_start := AudioStreamPlayer.new()
+	sfx_start.stream = load("res://assets/Startsound.wav")
+	sfx_start.volume_db = 0.0
+	add_child(sfx_start)
+	sfx_start.play()
 
 	_sfx_shoot = AudioStreamPlayer.new()
 	_sfx_shoot.stream = load("res://assets/39459__the_bizniss__laser.wav")
 	_sfx_shoot.volume_db = -6.0
 	add_child(_sfx_shoot)
 
+	_proj_tex     = load("res://assets/Part 2/69.png")
+	_orc_walk_tex  = load("res://assets/Orc/Orc/Orc-Walk.png")
+	_orc_death_tex = load("res://assets/Orc/Orc/Orc-Death.png")
+	for i in TowerDefs.count():
+		_tower_texs.append(load(TowerDefs.ANIM_SHEET[i]))
+	_floor_tex = load("res://assets/Floor_Tileset/floor_tiles.png")
+
+	var env := Environment.new()
+	env.glow_enabled       = true
+	env.glow_normalized    = true
+	env.glow_intensity     = 2.0
+	env.glow_bloom         = 0.8
+	env.glow_hdr_threshold = 0.4
+	env.glow_hdr_scale     = 3.0
+	_world_env             = WorldEnvironment.new()
+	_world_env.environment = env
+	add_child(_world_env)
+
 	_hud = HUD.new()
 	_hud.tower_selected.connect(_select_tower)
 	_hud.start_wave_pressed.connect(_on_send_early)
 	_hud.difficulty_set.connect(_set_difficulty)
 	_hud.clear_all_pressed.connect(_on_clear_all)
+	_hud.sell_tower_pressed.connect(_on_sell_tower)
+	_hud.drag_side_changed.connect(func(right: bool) -> void: _drag_right = right)
 	add_child(_hud)
 
 	Pathfinder.rebuild(CELL)
@@ -58,15 +109,53 @@ func _ready() -> void:
 # Input
 # ============================================================
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventScreenTouch and not event.pressed:
-		_handle_tap(event.position)
+func _get_drag_off() -> Vector2:
+	var side := 1 if _drag_right else -1
+	return Vector2(CELL * 2.5 * side, -CELL * 2.5)
+
+
+func _input(event: InputEvent) -> void:
+	# ── Drag-to-place: update ghost while dragging ────────────
+	if event is InputEventScreenDrag and GameState.placing:
+		var local := to_local(event.position)
+		GameState.hover_pos   = _snap(local + _get_drag_off())
+		GameState.hover_valid = _can_place(GameState.hover_pos, TowerDefs.SIZES[GameState.selected])
+		_has_drag = true
 		queue_redraw()
+		get_viewport().set_input_as_handled()
 		return
 
+	# ── Touch release: place or inspect ───────────────────────
+	if event is InputEventScreenTouch and not event.pressed:
+		if GameState.placing:
+			if _has_drag:
+				# Use the last stable snapped position from drag, ignoring release jitter.
+				# Pass top-left corner in pixels so _snap() re-snaps to the exact same cell.
+				var stable := GameState.hover_pos * float(CELL)
+				_has_drag = false
+				_handle_tap(stable)
+			else:
+				# Tap (no prior drag): apply offset normally
+				var tap_pos := to_local(event.position) + _get_drag_off()
+				var in_grid: bool = tap_pos.x >= 0 and tap_pos.y >= 0 \
+					and tap_pos.x < COLS * CELL and tap_pos.y < ROWS * CELL
+				if in_grid:
+					GameState.hover_pos   = _snap(tap_pos)
+					GameState.hover_valid = _can_place(GameState.hover_pos, TowerDefs.SIZES[GameState.selected])
+					_handle_tap(tap_pos)
+				else:
+					_exit_placement()
+		else:
+			_has_drag = false
+			_handle_tap(to_local(event.position))
+		queue_redraw()
+		get_viewport().set_input_as_handled()
+
+
+func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		if GameState.placing:
-			GameState.hover_pos   = _snap(event.position)
+			GameState.hover_pos   = _snap(to_local(event.position))
 			GameState.hover_valid = _can_place(GameState.hover_pos, TowerDefs.SIZES[GameState.selected])
 			queue_redraw()
 		return
@@ -75,11 +164,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		match event.button_index:
 			MOUSE_BUTTON_LEFT:
 				if event.pressed:
-					_handle_tap(event.position)
+					_handle_tap(to_local(event.position))
 					queue_redraw()
 			MOUSE_BUTTON_RIGHT:
 				if event.pressed:
-					_remove_at(event.position)
+					_remove_at(to_local(event.position))
 					queue_redraw()
 
 # ============================================================
@@ -128,6 +217,8 @@ func _handle_tap(local: Vector2) -> void:
 		GameState.set_inspected({})
 		Pathfinder.rebuild(CELL)
 		_exit_placement()
+	else:
+		GameState.set_inspected({})
 
 # ============================================================
 # UI callbacks
@@ -150,6 +241,19 @@ func _on_send_early() -> void:
 	if GameState.wave_in_progress or GameState.current_path.is_empty():
 		return
 	GameState.wave_countdown = 0.0
+
+
+func _on_sell_tower() -> void:
+	if GameState.inspected.is_empty():
+		return
+	var t := GameState.inspected
+	GameState.set_inspected({})
+	var refund: int = int(TowerDefs.COST[t.type] * 0.75)
+	GameState.add_gold(refund)
+	GameState.towers = GameState.towers.filter(func(x: Dictionary) -> bool:
+		return not is_same(x, t))
+	Pathfinder.rebuild(CELL)
+	queue_redraw()
 
 
 func _on_clear_all() -> void:
@@ -258,8 +362,11 @@ func _tick_vfx(delta: float) -> void:
 	GameState.wave_banner_timer = maxf(0.0, GameState.wave_banner_timer - delta)
 	for ex in GameState.explosions:
 		ex.timer -= delta
+	for c in GameState.corpses:
+		c.timer += delta
 
 	GameState.enemies     = GameState.enemies.filter(func(e:  Dictionary) -> bool: return not e.dead)
+	GameState.corpses     = GameState.corpses.filter(func(c:  Dictionary) -> bool: return c.timer < 0.7)
 	GameState.projectiles = GameState.projectiles.filter(func(p:  Dictionary) -> bool: return not p.spent)
 	GameState.explosions  = GameState.explosions.filter(func(ex: Dictionary) -> bool: return ex.timer > 0.0)
 	GameState.particles   = GameState.particles.filter(func(pt: Dictionary) -> bool: return pt.timer > 0.0)
@@ -325,6 +432,8 @@ func _tick_enemies(delta: float) -> void:
 			e.pos     = target
 			e.wp_idx += 1
 		else:
+			if abs(diff.x) > 1.0:
+				e.face_right = diff.x > 0.0
 			e.pos += diff.normalized() * move
 
 
@@ -365,14 +474,16 @@ func _tick_towers(delta: float) -> void:
 			if nearest.get("flying", false):
 				dmg *= TowerDefs.AIR_MULT[t.type]
 			GameState.projectiles.append({
-				pos       = tc,
-				target    = nearest,
-				speed     = PROJ_SPEED,
-				damage    = dmg,
-				color     = TowerDefs.STROKE[t.type],
-				aoe       = TowerDefs.AOE[t.type],
-				splash_px = TowerDefs.SPLASH[t.type] * CELL,
-				spent     = false,
+				pos        = tc,
+				target     = nearest,
+				speed      = PROJ_SPEED,
+				damage     = dmg,
+				color      = TowerDefs.STROKE[t.type],
+				aoe        = TowerDefs.AOE[t.type],
+				splash_px  = TowerDefs.SPLASH[t.type] * CELL,
+				spent      = false,
+				anim_time  = 0.0,
+				tower_type = t.type,
 			})
 			t.cooldown = 1.0 / TowerDefs.FIRERATE[t.type]
 			_sfx_shoot.play()
@@ -386,6 +497,8 @@ func _tick_projectiles(delta: float) -> void:
 		if p.target.dead:
 			p.spent = true
 			continue
+
+		p.anim_time += delta
 
 		var diff: Vector2 = p.target.pos - p.pos
 		var dist: float   = diff.length()
@@ -412,6 +525,13 @@ func _apply_damage(e: Dictionary, damage: float, creep_gold: int) -> void:
 		e.dead = true
 		var kg: int = creep_gold
 		GameState.add_gold(kg)
+		if not e.get("flying", false):
+			GameState.corpses.append({
+				pos        = e.pos,
+				face_right = e.get("face_right", true),
+				is_boss    = e.get("is_boss", false),
+				timer      = 0.0,
+			})
 		WaveManager.spawn_death_fx(e.pos, e.get("flying", false), e.get("is_boss", false), kg)
 	else:
 		e.hit_flash = 0.15
@@ -441,13 +561,43 @@ func _draw() -> void:
 			draw_rect(Rect2(t.pos.x * CELL, t.pos.y * CELL, t.sz.x * CELL, t.sz.y * CELL),
 				Color(1.0, 1.0, 1.0, 0.9), false, 2.0)
 
+	for c in GameState.corpses:
+		if _orc_death_tex:
+			var frame: int = mini(int(c.timer * 6.0), 3)   # 4 frames, 6fps ≈ 0.67s
+			var r:     float = 110.0 if c.is_boss else 80.0
+			var src   := Rect2(frame * 100, 0, 100, 100)
+			var dst   := Rect2(c.pos.x - r, c.pos.y - r, r * 2.0, r * 2.0)
+			var fade:  float = 1.0 - (c.timer / 0.7)
+			if c.face_right:
+				draw_texture_rect_region(_orc_death_tex, dst, src, Color(1, 1, 1, fade))
+			else:
+				draw_set_transform(Vector2(c.pos.x * 2.0, 0.0), 0.0, Vector2(-1.0, 1.0))
+				draw_texture_rect_region(_orc_death_tex, dst, src, Color(1, 1, 1, fade))
+				draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
 	for e in GameState.enemies:
 		if not e.dead:
 			_draw_enemy(e)
 
 	for p in GameState.projectiles:
 		if not p.spent:
-			draw_circle(p.pos, 4.0, p.color)
+			var ttype: int = p.get("tower_type", 1)
+			var sc:  Color = TowerDefs.STROKE[ttype]
+			var tex: Texture2D = _tower_texs[ttype] if ttype < _tower_texs.size() else null
+			if tex:
+				var row:   int = TowerDefs.ANIM_ROW[ttype]
+				var fps: float = TowerDefs.ANIM_FPS[ttype]
+				var frame: int = int(p.anim_time * fps * 2.0) % 8
+				var src := Rect2(frame * 64, row * 64, 64, 64)
+				var dst := Rect2(p.pos.x - 10, p.pos.y - 10, 20, 20)
+				# Glow-aura i tornets färg
+				draw_circle(p.pos, 22.0, Color(sc.r * 0.15, sc.g * 0.15, sc.b * 0.15, 0.10))
+				draw_circle(p.pos, 14.0, Color(sc.r * 0.40, sc.g * 0.40, sc.b * 0.40, 0.20))
+				draw_circle(p.pos,  8.0, Color(sc.r * 0.80, sc.g * 0.80, sc.b * 0.80, 0.30))
+				# HDR-modulate med tornets stroke-färg
+				draw_texture_rect_region(tex, dst, src, Color(sc.r * 4.0, sc.g * 4.0, sc.b * 4.0))
+			else:
+				draw_circle(p.pos, 4.0, p.color)
 
 	for ex in GameState.explosions:
 		var t_frac: float = ex.timer / 0.25
@@ -492,7 +642,39 @@ func _draw() -> void:
 
 
 func _draw_bg() -> void:
-	draw_rect(Rect2(0, 0, COLS * CELL, ROWS * CELL), COL_BG)
+	var vp := get_viewport_rect().size
+	draw_rect(Rect2(0, -GRID_TOP, vp.x, vp.y), COL_BG)
+	if not _floor_tex:
+		return
+
+	# 9-slice stengolv — tile-storlek 16×16 i floor_tiles.png (128×128, 8×8 tiles)
+	# Rad 0 = ljus stenkant, rad 1-4 = mörkt tegel, rad 5 = nederkant
+	# Kolumn 0/7 = sidokant, kolumner 1-6 = interiör
+	for row in range(ROWS):
+		for col in range(COLS):
+			var dst := Rect2(col * CELL, row * CELL, CELL, CELL)
+			var src: Rect2
+			var is_top    := row == 0
+			var is_bot    := row == ROWS - 1
+			var is_left   := col == 0
+			var is_right  := col == COLS - 1
+			if is_top:
+				var tx := 112 if is_right else (0 if is_left else 16)
+				src = Rect2(tx, 0, 16, 16)
+			elif is_bot:
+				var tx := 112 if is_right else (0 if is_left else 16)
+				src = Rect2(tx, 80, 16, 16)
+			elif is_left:
+				src = Rect2(0, 16 + (hash(row * 13) % 4) * 16, 16, 16)
+			elif is_right:
+				src = Rect2(112, 16 + (hash(row * 17) % 4) * 16, 16, 16)
+			else:
+				# Interiör: variera bland 24 innertiles (rad 1-4, kol 1-6)
+				var hi := hash(row * 97 + col * 31)
+				var ix := 1 + (hi % 6)
+				var iy := 1 + ((hi / 6) % 4)
+				src = Rect2(ix * 16, iy * 16, 16, 16)
+			draw_texture_rect_region(_floor_tex, dst, src, Color(0.35, 0.30, 0.28))
 
 
 func _draw_grid() -> void:
@@ -576,13 +758,28 @@ func _draw_enemy(e: Dictionary) -> void:
 		draw_rect(Rect2(bx, by_, bar_w, 3.0), COL_HP_BG)
 		draw_rect(Rect2(bx, by_, bar_w * (e.hp / e.max_hp), 3.0), COL_HP_FG)
 	else:
-		var radius: float = 12.0 if is_boss else 7.0
-		var col:    Color = COL_ENEMY
-		if flash_t > 0.0:
-			col = col.lerp(Color.WHITE, flash_t)
-		draw_circle(e.pos, radius, col)
-		var bar_w: float = radius * 3.0
+		var r:   float = 110.0 if is_boss else 80.0
+		var sz:  float = r * 2.0
+		var mod: Color = Color.WHITE if flash_t <= 0.0 else Color.WHITE.lerp(Color(3.0, 3.0, 3.0), flash_t)
+		var dst := Rect2(e.pos.x - r, e.pos.y - r, sz, sz)
+
+		if _orc_walk_tex:
+			var frame := int(Time.get_ticks_msec() / 1000.0 * 8.0) % 8
+			var src   := Rect2(frame * 100, 0, 100, 100)
+			if e.get("face_right", true):
+				draw_texture_rect_region(_orc_walk_tex, dst, src, mod)
+			else:
+				draw_set_transform(Vector2(e.pos.x * 2.0, 0.0), 0.0, Vector2(-1.0, 1.0))
+				draw_texture_rect_region(_orc_walk_tex, dst, src, mod)
+				draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		else:
+			var col: Color = COL_ENEMY
+			if flash_t > 0.0:
+				col = col.lerp(Color.WHITE, flash_t)
+			draw_circle(e.pos, r, col)
+
+		var bar_w: float = 28.0
 		var bx:    float = e.pos.x - bar_w * 0.5
-		var by_:   float = e.pos.y - radius - 5.0
+		var by_:   float = e.pos.y - r * 0.55
 		draw_rect(Rect2(bx, by_, bar_w, 3.0), COL_HP_BG)
 		draw_rect(Rect2(bx, by_, bar_w * (e.hp / e.max_hp), 3.0), COL_HP_FG)

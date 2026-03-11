@@ -1,6 +1,6 @@
 ```
 # Maze TD — Game Design Document
-**Version 0.4 | Uppdaterad mars 2026**
+**Version 0.5 | Uppdaterad mars 2026**
 
 ---
 
@@ -209,7 +209,7 @@ Spelaren väljer svårighetsgrad innan omgången börjar. Presenteras som en rä
 
 **Implementerat:**
 
-- Startguld: 500g (200g vid omstart)
+- Startguld: 500g (även vid omstart)
 - Dödade fiender ger bounty per kill (8–500g, WC3-baserat, ökar per våg)
 - Guldbonus för avslutad våg: 35–1200g (ökar per våg, WC3-baserat)
 - Sälja torn: 75% återbetalning (högerklick) — samma som WC3
@@ -289,8 +289,12 @@ Eftersom stolthetskänslan är spelets kärna måste det finnas sätt att visa u
 | 3 | Tors tornkit med färger och projektiler | ✅ Klart (5 torn) |
 | 4 | Fiender, vågor, räknare | ✅ Klart |
 | 5 | Ekonomi: sälja torn (75%), auto-waves, 40-vågs WC3-data | ✅ Klart |
+| 5b | Ljud: skjut-ljud, startsound | ✅ Klart |
+| 5c | Sprite-animationer: Orc walk/death som markfiende | ✅ Klart |
+| 5d | Per-torn projektilanimationer med glow (HDR + bloom) | ✅ Klart |
+| 5e | WorldEnvironment glow + stengolv-textur | ✅ Klart |
 | 6 | Gudval + UI för tornuppsättning per gud | ⬅ Nästa |
-| 7 | Loki, Oden, Freja | Kommande |
+| 7 | Loki, Oden, Freja (torn + projektiler) | Kommande |
 | 8 | Fler kartor, multiplayer, polish | Framtida |
 
 ---
@@ -300,12 +304,12 @@ Eftersom stolthetskänslan är spelets kärna måste det finnas sätt att visa u
 | Fråga | Notering |
 |-------|----------|
 | Exakta torn-stats och kostnader | Grundvärden implementerade, finjustering pågår |
-| Antal vågor totalt — begränsat eller oändligt? | 20 definierade, loop-cap på 20. Öppet om mer variation behövs |
-| Fiende-teman och namn | Valkyrior, jättar, troll? Nuläge: generiska cirklar/diamanter |
+| Antal vågor totalt — begränsat eller oändligt? | 40 definierade, öppet om loopning behövs |
 | Uppgradera på plats eller riva och bygga nytt? | Öppen |
 | Tempest — hör den till Tor eller en annan gud? | Lila färg passar möjligen Loki bättre |
-| Startguld (500) vs omstartguld (200) — medvetet? | Bör förmodligen vara samma |
-| Gudval-skärm och tornlåsning per gud | Saknas ännu — all torn tillgängliga nu |
+| Gudval-skärm och tornlåsning per gud | Saknas ännu — alla torn tillgängliga nu |
+| Sprite för flygande fiender | Diamant-placeholder kvar, behöver asset |
+| HP-bar stil | WC3-stil alltid synlig, kan behöva finjusteras |
 
 ## 16. UI-layout (nuläge)
 

@@ -22,6 +22,7 @@ var projectiles:     Array = []
 var explosions:      Array = []
 var particles:       Array = []
 var floats:          Array = []
+var corpses:         Array = []
 var current_path:    Array = []
 var wave_spawn_queue: Array = []
 
@@ -91,6 +92,7 @@ func reset() -> void:
 	explosions.clear()
 	particles.clear()
 	floats.clear()
+	corpses.clear()
 	current_path.clear()
 	wave_spawn_queue.clear()
 
@@ -103,7 +105,7 @@ func reset() -> void:
 
 	escaped      = 0
 	max_escape   = [100, 50, 0][difficulty]
-	gold         = 200
+	gold         = 500
 	game_started = false
 	game_over    = false
 
