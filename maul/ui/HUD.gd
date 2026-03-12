@@ -17,6 +17,7 @@ signal drag_side_changed(right: bool)
 # ============================================================
 
 var _tower_btns:     Array[Button] = []
+var _tower_grid:     GridContainer
 var _send_early_btn: Button
 var _countdown_lbl:  Label
 var _status_lbl:     Label
@@ -33,6 +34,8 @@ var _sp_stats_lbl:   Label
 var _sp_price_lbl:   Label
 var _drag_side_btn:  Button
 var _drag_right:     bool = false
+var _god_btns:       Array[Button] = []
+var _pending_god:    int = 0
 
 # ============================================================
 # Lifecycle
@@ -101,7 +104,7 @@ func _build_ui() -> void:
 	_tower_drawer.set_anchor(SIDE_TOP,    1.0)
 	_tower_drawer.set_anchor(SIDE_BOTTOM, 1.0)
 	_tower_drawer.set_offset(SIDE_TOP,    -240)
-	_tower_drawer.set_offset(SIDE_BOTTOM, -44)   # sits above the toggle button
+	_tower_drawer.set_offset(SIDE_BOTTOM, -44)
 	_tower_drawer.visible = false
 	cl.add_child(_tower_drawer)
 
@@ -109,22 +112,11 @@ func _build_ui() -> void:
 	dvbox.add_theme_constant_override("separation", 6)
 	_tower_drawer.add_child(dvbox)
 
-	# 2-column grid for tower buttons
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 6)
-	grid.add_theme_constant_override("v_separation", 6)
-	dvbox.add_child(grid)
-
-	for i in TowerDefs.count():
-		var btn := Button.new()
-		btn.text = "%s\n%dg" % [TowerDefs.NAMES[i], TowerDefs.COST[i]]
-		btn.toggle_mode = true
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.custom_minimum_size   = Vector2(0, 52)
-		btn.button_down.connect(_on_tower_btn.bind(i))
-		grid.add_child(btn)
-		_tower_btns.append(btn)
+	_tower_grid = GridContainer.new()
+	_tower_grid.columns = 2
+	_tower_grid.add_theme_constant_override("h_separation", 6)
+	_tower_grid.add_theme_constant_override("v_separation", 6)
+	dvbox.add_child(_tower_grid)
 
 	_info_lbl = Label.new()
 	_info_lbl.text = "Tryck pa ett placerat torn"
@@ -219,7 +211,7 @@ func _build_ui() -> void:
 
 	# ── Start screen (added last = renders on top) ────────────
 	_start_screen = ColorRect.new()
-	_start_screen.color = Color(0.05, 0.07, 0.10, 0.96)
+	(_start_screen as ColorRect).color = Color(0.05, 0.07, 0.10, 0.96)
 	_start_screen.set_anchor(SIDE_LEFT,   0.0)
 	_start_screen.set_anchor(SIDE_RIGHT,  1.0)
 	_start_screen.set_anchor(SIDE_TOP,    0.0)
@@ -234,7 +226,7 @@ func _build_ui() -> void:
 	_start_screen.add_child(center)
 
 	var svbox := VBoxContainer.new()
-	svbox.add_theme_constant_override("separation", 28)
+	svbox.add_theme_constant_override("separation", 20)
 	center.add_child(svbox)
 
 	var title_lbl := Label.new()
@@ -243,11 +235,34 @@ func _build_ui() -> void:
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	svbox.add_child(title_lbl)
 
-	var sub_lbl := Label.new()
-	sub_lbl.text = "Valj svarighetsgrad"
-	sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub_lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
-	svbox.add_child(sub_lbl)
+	# ── Gudval ────────────────────────────────────────────────
+	var god_sub := Label.new()
+	god_sub.text = "Välj din gud"
+	god_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	god_sub.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
+	svbox.add_child(god_sub)
+
+	var god_row := HBoxContainer.new()
+	god_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	god_row.add_theme_constant_override("separation", 10)
+	svbox.add_child(god_row)
+
+	for i in TowerDefs.GOD_NAMES.size():
+		var gbtn := Button.new()
+		gbtn.text = "%s\n%s" % [TowerDefs.GOD_EMOJIS[i], TowerDefs.GOD_NAMES[i]]
+		gbtn.custom_minimum_size = Vector2(80, 64)
+		gbtn.toggle_mode = true
+		gbtn.button_pressed = (i == 0)   # Tor förmarkerad
+		gbtn.pressed.connect(_on_god_btn.bind(i))
+		god_row.add_child(gbtn)
+		_god_btns.append(gbtn)
+
+	# ── Svårighetsval ─────────────────────────────────────────
+	var diff_sub := Label.new()
+	diff_sub.text = "Välj svårighetsgrad"
+	diff_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	diff_sub.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
+	svbox.add_child(diff_sub)
 
 	var diff_row := HBoxContainer.new()
 	diff_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -280,13 +295,29 @@ func _toggle_drawer() -> void:
 	_tower_drawer.visible = not _tower_drawer.visible
 	_tower_toggle.text    = "Torn  ^" if _tower_drawer.visible else "Torn  v"
 
+
+func _rebuild_tower_buttons(god_idx: int) -> void:
+	for child in _tower_grid.get_children():
+		_tower_grid.remove_child(child)
+		child.queue_free()
+	_tower_btns.clear()
+
+	for i in TowerDefs.GOD_TOWERS[god_idx]:
+		var btn := Button.new()
+		btn.text = "%s\n%dg" % [TowerDefs.NAMES[i], TowerDefs.COST[i]]
+		btn.toggle_mode = true
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.custom_minimum_size   = Vector2(0, 52)
+		btn.button_down.connect(_on_tower_btn.bind(i))
+		_tower_grid.add_child(btn)
+		_tower_btns.append(btn)
+
 # ============================================================
 # GameState signal handlers
 # ============================================================
 
 func _on_gold_changed(amount: int) -> void:
 	_gold_lbl.text = "Gold: %d" % amount
-
 
 
 func _on_escaped_changed(current: int, max_val: int) -> void:
@@ -323,6 +354,10 @@ func _on_game_restarted() -> void:
 		btn.button_pressed = false
 	if _tower_drawer.visible:
 		_toggle_drawer()
+	# Återställ gudval till Tor
+	_pending_god = 0
+	for i in _god_btns.size():
+		_god_btns[i].button_pressed = (i == 0)
 	_start_screen.visible = true
 
 
@@ -343,15 +378,28 @@ func _on_tower_inspected(tower: Dictionary) -> void:
 # Button handlers
 # ============================================================
 
+func _on_god_btn(idx: int) -> void:
+	_pending_god = idx
+	for i in _god_btns.size():
+		_god_btns[i].button_pressed = (i == idx)
+
+
 func _on_start_difficulty(idx: int) -> void:
+	GameState.selected_god   = _pending_god
 	GameState.wave_countdown = GameState.WAVE_INTERVAL_FIRST
+	_rebuild_tower_buttons(_pending_god)
 	difficulty_set.emit(idx)
 	_start_screen.visible = false
 
 
 func _on_tower_btn(idx: int) -> void:
-	for i in _tower_btns.size():
-		_tower_btns[i].button_pressed = (i == idx)
+	for btn in _tower_btns:
+		btn.button_pressed = false
+	# Hitta och markera rätt knapp
+	var god_towers: Array = TowerDefs.GOD_TOWERS[GameState.selected_god]
+	var pos: int = god_towers.find(idx)
+	if pos >= 0 and pos < _tower_btns.size():
+		_tower_btns[pos].button_pressed = true
 	tower_selected.emit(idx)
 
 
@@ -371,7 +419,6 @@ func deselect_tower_buttons() -> void:
 
 func show_status(text: String) -> void:
 	_status_lbl.text = text
-
 
 
 func update_countdown(seconds: float, next_wave: int) -> void:

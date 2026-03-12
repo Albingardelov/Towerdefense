@@ -85,11 +85,11 @@ func _ready() -> void:
 
 	var env := Environment.new()
 	env.glow_enabled       = true
-	env.glow_normalized    = true
-	env.glow_intensity     = 2.0
-	env.glow_bloom         = 0.8
-	env.glow_hdr_threshold = 0.4
-	env.glow_hdr_scale     = 3.0
+	env.glow_normalized    = false
+	env.glow_intensity     = 3.5
+	env.glow_bloom         = 1.0
+	env.glow_hdr_threshold = 0.3
+	env.glow_hdr_scale     = 5.0
 	_world_env             = WorldEnvironment.new()
 	_world_env.environment = env
 	add_child(_world_env)
@@ -365,6 +365,8 @@ func _tick_vfx(delta: float) -> void:
 	for c in GameState.corpses:
 		c.timer += delta
 
+
+
 	GameState.enemies     = GameState.enemies.filter(func(e:  Dictionary) -> bool: return not e.dead)
 	GameState.corpses     = GameState.corpses.filter(func(c:  Dictionary) -> bool: return c.timer < 0.7)
 	GameState.projectiles = GameState.projectiles.filter(func(p:  Dictionary) -> bool: return not p.spent)
@@ -581,7 +583,7 @@ func _draw() -> void:
 
 	for p in GameState.projectiles:
 		if not p.spent:
-			var ttype: int = p.get("tower_type", 1)
+			var ttype: int = p.get("tower_type", 0)
 			var sc:  Color = TowerDefs.STROKE[ttype]
 			var tex: Texture2D = _tower_texs[ttype] if ttype < _tower_texs.size() else null
 			if tex:
@@ -591,11 +593,11 @@ func _draw() -> void:
 				var src := Rect2(frame * 64, row * 64, 64, 64)
 				var dst := Rect2(p.pos.x - 10, p.pos.y - 10, 20, 20)
 				# Glow-aura i tornets färg
-				draw_circle(p.pos, 22.0, Color(sc.r * 0.15, sc.g * 0.15, sc.b * 0.15, 0.10))
-				draw_circle(p.pos, 14.0, Color(sc.r * 0.40, sc.g * 0.40, sc.b * 0.40, 0.20))
-				draw_circle(p.pos,  8.0, Color(sc.r * 0.80, sc.g * 0.80, sc.b * 0.80, 0.30))
-				# HDR-modulate med tornets stroke-färg
-				draw_texture_rect_region(tex, dst, src, Color(sc.r * 4.0, sc.g * 4.0, sc.b * 4.0))
+				draw_circle(p.pos, 12.0, Color(sc.r * 0.25, sc.g * 0.25, sc.b * 0.25, 0.20))
+				draw_circle(p.pos,  8.0, Color(sc.r * 0.60, sc.g * 0.60, sc.b * 0.60, 0.35))
+				draw_circle(p.pos,  5.0, Color(sc.r * 1.00, sc.g * 1.00, sc.b * 1.00, 0.55))
+				# Sprite med HDR-modulate för bloom
+				draw_texture_rect_region(tex, dst, src, Color(sc.r * 6.0, sc.g * 6.0, sc.b * 6.0))
 			else:
 				draw_circle(p.pos, 4.0, p.color)
 

@@ -1,6 +1,6 @@
 ```
 # Maze TD — Game Design Document
-**Version 0.5 | Uppdaterad mars 2026**
+**Version 0.6 | Uppdaterad mars 2026**
 
 ---
 
@@ -293,8 +293,8 @@ Eftersom stolthetskänslan är spelets kärna måste det finnas sätt att visa u
 | 5c | Sprite-animationer: Orc walk/death som markfiende | ✅ Klart |
 | 5d | Per-torn projektilanimationer med glow (HDR + bloom) | ✅ Klart |
 | 5e | WorldEnvironment glow + stengolv-textur | ✅ Klart |
-| 6 | Gudval + UI för tornuppsättning per gud | ⬅ Nästa |
-| 7 | Loki, Oden, Freja (torn + projektiler) | Kommande |
+| 6 | Gudval + UI för tornuppsättning per gud | ✅ Klart |
+| 7 | Loki, Oden, Freja (torn + projektiler) | ✅ Klart (stats + färger; sprite-assets placeholder) |
 | 8 | Fler kartor, multiplayer, polish | Framtida |
 
 ---
@@ -307,7 +307,7 @@ Eftersom stolthetskänslan är spelets kärna måste det finnas sätt att visa u
 | Antal vågor totalt — begränsat eller oändligt? | 40 definierade, öppet om loopning behövs |
 | Uppgradera på plats eller riva och bygga nytt? | Öppen |
 | Tempest — hör den till Tor eller en annan gud? | Lila färg passar möjligen Loki bättre |
-| Gudval-skärm och tornlåsning per gud | Saknas ännu — alla torn tillgängliga nu |
+| Gudval-skärm och tornlåsning per gud | ✅ Implementerat |
 | Sprite för flygande fiender | Diamant-placeholder kvar, behöver asset |
 | HP-bar stil | WC3-stil alltid synlig, kan behöva finjusteras |
 
