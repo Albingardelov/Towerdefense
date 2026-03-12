@@ -24,6 +24,8 @@ var particles:       Array = []
 var floats:          Array = []
 var corpses:         Array = []
 var current_path:    Array = []
+var current_paths:   Array = []   # Array of paths, one per map entry
+var current_map:     int   = 0    # 0 = klassisk, 1 = mandala
 var wave_spawn_queue: Array = []
 
 # ============================================================
@@ -95,6 +97,7 @@ func reset() -> void:
 	floats.clear()
 	corpses.clear()
 	current_path.clear()
+	current_paths.clear()
 	wave_spawn_queue.clear()
 
 	wave              = 0

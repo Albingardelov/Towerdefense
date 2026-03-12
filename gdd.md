@@ -152,10 +152,17 @@ Start- och slutpunkt är konfigurerbara i koden — olika kartor kräver ingen n
 
 | Karta | Beskrivning | Status |
 |-------|-------------|--------|
-| Karta 1 — Klassisk | Uppifrån → ner, en ingång, en utgång | Byggs först |
-| Karta 2 — Horisontell | Vänster → höger | Framtida |
-| Karta 3 — Konvergens | Fyra kanter → mitten (mandala-estetik) | Framtida |
+| Karta 1 — Klassisk | Uppifrån → ner, en ingång (topp kol 8), en utgång (botten kol 8) | ✅ Klart |
+| Karta 2 — Mandala | Fyra hörn → mitten. Spelaren tvingas bygga en mandala runt centrum | ✅ Klart |
+| Karta 3 — Horisontell | Vänster → höger | Framtida |
 | Karta 4 — Explosion | Mitten → ut mot kanterna | Framtida |
+
+### Karta 2 — Mandala (detaljer)
+
+- **4 ingångar:** hörnen (0,0), (15,0), (0,21), (15,21)
+- **1 utgång:** mitten av kartan (col 8, rad 11)
+- **Regel:** alla fyra stigar måste hållas öppna — torn som blockerar någon stig nekas
+- **Estetik:** naturligt tvingar spelaren att bygga spiralformade strukturer runt centrum
 
 ---
 
@@ -295,7 +302,8 @@ Eftersom stolthetskänslan är spelets kärna måste det finnas sätt att visa u
 | 5e | WorldEnvironment glow + stengolv-textur | ✅ Klart |
 | 6 | Gudval + UI för tornuppsättning per gud | ✅ Klart |
 | 7 | Loki, Oden, Freja (torn + projektiler) | ✅ Klart (stats + färger; sprite-assets placeholder) |
-| 8 | Fler kartor, multiplayer, polish | Framtida |
+| 8a | Karta 2 — Mandala (fyra hörn → mitten) | ✅ Klart |
+| 8b | Fler kartor, multiplayer, polish | ⬅ Nästa |
 
 ---
 
@@ -307,7 +315,6 @@ Eftersom stolthetskänslan är spelets kärna måste det finnas sätt att visa u
 | Antal vågor totalt — begränsat eller oändligt? | 40 definierade, öppet om loopning behövs |
 | Uppgradera på plats eller riva och bygga nytt? | Öppen |
 | Tempest — hör den till Tor eller en annan gud? | Lila färg passar möjligen Loki bättre |
-| Gudval-skärm och tornlåsning per gud | ✅ Implementerat |
 | Sprite för flygande fiender | Diamant-placeholder kvar, behöver asset |
 | HP-bar stil | WC3-stil alltid synlig, kan behöva finjusteras |
 

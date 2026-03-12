@@ -98,11 +98,14 @@ func _ready() -> void:
 	_hud.tower_selected.connect(_select_tower)
 	_hud.start_wave_pressed.connect(_on_send_early)
 	_hud.difficulty_set.connect(_set_difficulty)
+	_hud.map_selected.connect(_on_map_selected)
 	_hud.clear_all_pressed.connect(_on_clear_all)
 	_hud.sell_tower_pressed.connect(_on_sell_tower)
 	_hud.drag_side_changed.connect(func(right: bool) -> void: _drag_right = right)
 	add_child(_hud)
 
+	# Konfigurera klassisk karta som standard
+	_on_map_selected(0)
 	Pathfinder.rebuild(CELL)
 
 # ============================================================
@@ -224,6 +227,22 @@ func _handle_tap(local: Vector2) -> void:
 # UI callbacks
 # ============================================================
 
+func _on_map_selected(idx: int) -> void:
+	GameState.current_map  = idx
+	Pathfinder.map_mode    = idx
+	if idx == 1:  # Mandala — fyra hörn mot mitten
+		Pathfinder.map_entries = [
+			Vector2i(0,        0),
+			Vector2i(COLS - 1, 0),
+			Vector2i(0,        ROWS - 1),
+			Vector2i(COLS - 1, ROWS - 1),
+		]
+		Pathfinder.map_exit_point = Vector2i(COLS / 2, ROWS / 2)
+	else:         # Klassisk — uppifrån ner
+		Pathfinder.map_entries    = [Pathfinder.ENTRY]
+		Pathfinder.map_exit_point = Pathfinder.EXIT
+
+
 func _set_difficulty(idx: int) -> void:
 	if GameState.game_started:
 		return
@@ -291,15 +310,22 @@ func _overlap(ax: float, ay: float, aw: float, ah: float,
 func _can_place(pos: Vector2, sz: Vector2i) -> bool:
 	if pos.x < 0 or pos.y < 0 or pos.x + sz.x > COLS or pos.y + sz.y > ROWS:
 		return false
-	if _overlap(pos.x, pos.y, sz.x, sz.y, Pathfinder.ENTRY.x, Pathfinder.ENTRY.y, 1, 1):
-		return false
-	if _overlap(pos.x, pos.y, sz.x, sz.y, Pathfinder.EXIT.x, Pathfinder.EXIT.y, 1, 1):
+	# Blockera inte ingångspunkter
+	for entry in Pathfinder.map_entries:
+		if _overlap(pos.x, pos.y, sz.x, sz.y, entry.x, entry.y, 1, 1):
+			return false
+	# Blockera inte utgångspunkten
+	var ep := Pathfinder.map_exit_point
+	if _overlap(pos.x, pos.y, sz.x, sz.y, ep.x, ep.y, 1, 1):
 		return false
 	for t in GameState.towers:
 		if _overlap(pos.x, pos.y, sz.x, sz.y, t.pos.x, t.pos.y, t.sz.x, t.sz.y):
 			return false
-	if Pathfinder.bfs(Pathfinder.build_blocked(pos, sz)).is_empty():
-		return false
+	# Alla stigar måste förbli öppna
+	var blocked := Pathfinder.build_blocked(pos, sz)
+	for entry in Pathfinder.map_entries:
+		if Pathfinder.bfs_path(entry, Pathfinder.map_exit_point, blocked).is_empty():
+			return false
 	return true
 
 
@@ -696,21 +722,24 @@ func _draw_subgrid() -> void:
 
 
 func _draw_path() -> void:
-	if GameState.current_path.size() < 2:
-		return
 	var half := CELL * 0.5
-	for i in range(GameState.current_path.size() - 1):
-		var a: Vector2i = GameState.current_path[i]
-		var b: Vector2i = GameState.current_path[i + 1]
-		draw_line(
-			Vector2((a.x + 0.5) * half, (a.y + 0.5) * half),
-			Vector2((b.x + 0.5) * half, (b.y + 0.5) * half),
-			COL_PATH, 1.5)
+	for path in GameState.current_paths:
+		if path.size() < 2:
+			continue
+		for i in range(path.size() - 1):
+			var a: Vector2i = path[i]
+			var b: Vector2i = path[i + 1]
+			draw_line(
+				Vector2((a.x + 0.5) * half, (a.y + 0.5) * half),
+				Vector2((b.x + 0.5) * half, (b.y + 0.5) * half),
+				COL_PATH, 1.5)
 
 
 func _draw_entry_exit() -> void:
-	_draw_marker(Pathfinder.ENTRY.x, Pathfinder.ENTRY.y, "IN",  COL_ENTRY, Color(0.05, 0.20, 0.05))
-	_draw_marker(Pathfinder.EXIT.x,  Pathfinder.EXIT.y,  "OUT", COL_EXIT,  Color(0.20, 0.05, 0.05))
+	for entry in Pathfinder.map_entries:
+		_draw_marker(entry.x, entry.y, "IN", COL_ENTRY, Color(0.05, 0.20, 0.05))
+	var ep := Pathfinder.map_exit_point
+	_draw_marker(ep.x, ep.y, "OUT", COL_EXIT, Color(0.20, 0.05, 0.05))
 
 
 func _draw_marker(col: int, row: int, label: String, stroke: Color, fill: Color) -> void:

@@ -8,6 +8,7 @@ extends Node
 signal tower_selected(idx: int)
 signal start_wave_pressed()
 signal difficulty_set(idx: int)
+signal map_selected(idx: int)
 signal clear_all_pressed()
 signal sell_tower_pressed()
 signal drag_side_changed(right: bool)
@@ -18,6 +19,8 @@ signal drag_side_changed(right: bool)
 
 var _tower_btns:     Array[Button] = []
 var _tower_grid:     GridContainer
+var _map_btns:       Array[Button] = []
+var _selected_map:   int    = 0
 var _send_early_btn: Button
 var _countdown_lbl:  Label
 var _status_lbl:     Label
@@ -252,12 +255,37 @@ func _build_ui() -> void:
 		gbtn.text = "%s\n%s" % [TowerDefs.GOD_EMOJIS[i], TowerDefs.GOD_NAMES[i]]
 		gbtn.custom_minimum_size = Vector2(80, 64)
 		gbtn.toggle_mode = true
-		gbtn.button_pressed = (i == 0)   # Tor förmarkerad
+		gbtn.button_pressed = (i == 0)
 		gbtn.pressed.connect(_on_god_btn.bind(i))
 		god_row.add_child(gbtn)
 		_god_btns.append(gbtn)
 
-	# ── Svårighetsval ─────────────────────────────────────────
+	# ── Kartval ───────────────────────────────────────────────
+	var map_sub_lbl := Label.new()
+	map_sub_lbl.text = "Välj karta"
+	map_sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	map_sub_lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
+	svbox.add_child(map_sub_lbl)
+
+	var map_row := HBoxContainer.new()
+	map_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	map_row.add_theme_constant_override("separation", 20)
+	svbox.add_child(map_row)
+
+	var map_labels: Array[String] = ["Klassisk", "Mandala"]
+	var map_descs:  Array[String] = ["Upp → Ner", "Hörn → Mitten"]
+	for i in 2:
+		var mbtn := Button.new()
+		mbtn.text = "%s\n%s" % [map_labels[i], map_descs[i]]
+		mbtn.toggle_mode = true
+		mbtn.button_pressed = (i == 0)
+		mbtn.custom_minimum_size = Vector2(130, 64)
+		mbtn.add_theme_font_size_override("font_size", 16)
+		mbtn.pressed.connect(_on_map_btn.bind(i))
+		map_row.add_child(mbtn)
+		_map_btns.append(mbtn)
+
+	# ── Svårighetsgrad (startar spelet) ───────────────────────
 	var diff_sub := Label.new()
 	diff_sub.text = "Välj svårighetsgrad"
 	diff_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -352,6 +380,8 @@ func _on_game_restarted() -> void:
 	_info_lbl.text           = "Tryck pa ett placerat torn"
 	for btn in _tower_btns:
 		btn.button_pressed = false
+	for i in _map_btns.size():
+		_map_btns[i].button_pressed = (i == _selected_map)
 	if _tower_drawer.visible:
 		_toggle_drawer()
 	# Återställ gudval till Tor
@@ -384,10 +414,17 @@ func _on_god_btn(idx: int) -> void:
 		_god_btns[i].button_pressed = (i == idx)
 
 
+func _on_map_btn(idx: int) -> void:
+	_selected_map = idx
+	for i in _map_btns.size():
+		_map_btns[i].button_pressed = (i == idx)
+
+
 func _on_start_difficulty(idx: int) -> void:
 	GameState.selected_god   = _pending_god
 	GameState.wave_countdown = GameState.WAVE_INTERVAL_FIRST
 	_rebuild_tower_buttons(_pending_god)
+	map_selected.emit(_selected_map)
 	difficulty_set.emit(idx)
 	_start_screen.visible = false
 

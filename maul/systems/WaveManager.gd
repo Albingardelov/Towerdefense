@@ -28,8 +28,12 @@ static func start() -> void:
 	else:
 		etype = 0  # ground
 
-	for _i in wd.count:
-		GameState.wave_spawn_queue.append(etype)
+	var num_entries: int = Pathfinder.map_entries.size()
+	for i in wd.count:
+		GameState.wave_spawn_queue.append({
+			"etype":     etype,
+			"entry_idx": i % num_entries,
+		})
 
 	var banner: String
 	match wd.special:
@@ -99,42 +103,50 @@ static func spawn_death_fx(pos: Vector2, flying: bool, is_boss: bool, gold_gaine
 # Private
 # ============================================================
 
-static func _spawn_enemy(etype: int, cell: int) -> void:
-	var wd      := WaveDefs.get_wave(GameState.wave)
-	var speed:  float = wd.speed
-	var hp:     float = wd.hp
-	var is_boss: bool = (etype == 2 or etype == 3)
-	var flying:  bool = (etype == 1 or etype == 3)
+static func _spawn_enemy(item: Dictionary, cell: int) -> void:
+	var wd       := WaveDefs.get_wave(GameState.wave)
+	var etype:    int   = item.get("etype", 0)
+	var entry_idx: int  = item.get("entry_idx", 0)
+	var speed:    float = wd.speed
+	var hp:       float = wd.hp
+	var is_boss:  bool  = (etype == 2 or etype == 3)
+	var flying:   bool  = (etype == 1 or etype == 3)
 
-	var entry_px := Vector2((Pathfinder.ENTRY.x + 0.5) * cell, (Pathfinder.ENTRY.y + 0.5) * cell)
-	var exit_px  := Vector2((Pathfinder.EXIT.x  + 0.5) * cell, (Pathfinder.EXIT.y  + 0.5) * cell)
+	var entry    := Pathfinder.map_entries[entry_idx]
+	var entry_px := Vector2((entry.x + 0.5) * cell, (entry.y + 0.5) * cell)
+	var exit_px  := Vector2((Pathfinder.map_exit_point.x + 0.5) * cell,
+							(Pathfinder.map_exit_point.y + 0.5) * cell)
 
 	if flying:
 		GameState.enemies.append({
-			pos       = entry_px,
-			goal      = exit_px,
-			flying    = true,
-			is_boss   = is_boss,
-			hp        = hp,
-			max_hp    = hp,
-			speed     = speed,
-			hit_flash = 0.0,
-			dead      = false,
+			pos           = entry_px,
+			goal          = exit_px,
+			flying        = true,
+			is_boss       = is_boss,
+			hp            = hp,
+			max_hp        = hp,
+			speed         = speed,
+			hit_flash     = 0.0,
+			dead          = false,
+			path_entry_idx = entry_idx,
 		})
 	else:
-		if GameState.current_path.is_empty():
+		var path: Array = GameState.current_paths[entry_idx] \
+			if entry_idx < GameState.current_paths.size() else GameState.current_path
+		if path.is_empty():
 			return
-		var waypoints := Pathfinder.path_to_pixels(GameState.current_path, cell)
+		var waypoints := Pathfinder.path_to_pixels(path, cell)
 		GameState.enemies.append({
-			pos        = waypoints[0],
-			waypoints  = waypoints,
-			wp_idx     = 0,
-			flying     = false,
-			is_boss    = is_boss,
-			hp         = hp,
-			max_hp     = hp,
-			speed      = speed,
-			hit_flash  = 0.0,
-			dead       = false,
-			face_right = true,
+			pos            = waypoints[0],
+			waypoints      = waypoints,
+			wp_idx         = 0,
+			flying         = false,
+			is_boss        = is_boss,
+			hp             = hp,
+			max_hp         = hp,
+			speed          = speed,
+			hit_flash      = 0.0,
+			dead           = false,
+			face_right     = true,
+			path_entry_idx = entry_idx,
 		})
