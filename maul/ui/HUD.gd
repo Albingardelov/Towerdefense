@@ -38,6 +38,7 @@ var _sp_price_lbl:   Label
 var _drag_side_btn:  Button
 var _drag_right:     bool = false
 var _speed_btn:      Button
+var _mute_btn:       Button
 var _god_btns:       Array[Button] = []
 var _pending_god:    int = 0
 
@@ -100,6 +101,11 @@ func _build_ui() -> void:
 	_speed_btn.text = "1x"
 	_speed_btn.pressed.connect(_on_speed_toggle)
 	top_hbox.add_child(_speed_btn)
+
+	_mute_btn = Button.new()
+	_mute_btn.text = "🔊"
+	_mute_btn.pressed.connect(_on_mute_toggle)
+	top_hbox.add_child(_mute_btn)
 
 	_drag_side_btn = Button.new()
 	_drag_side_btn.text = "◄"
@@ -448,6 +454,13 @@ func _on_tower_btn(idx: int) -> void:
 	if pos >= 0 and pos < _tower_btns.size():
 		_tower_btns[pos].button_pressed = true
 	tower_selected.emit(idx)
+
+
+func _on_mute_toggle() -> void:
+	var bus := AudioServer.get_bus_index("Master")
+	var muted := not AudioServer.is_bus_mute(bus)
+	AudioServer.set_bus_mute(bus, muted)
+	_mute_btn.text = "🔇" if muted else "🔊"
 
 
 func _on_speed_toggle() -> void:
