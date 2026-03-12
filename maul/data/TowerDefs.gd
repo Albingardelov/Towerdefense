@@ -23,11 +23,11 @@ const NAMES := [
 	# Tor (0-4)
 	"Cornerstone", "Lightning Rod", "Storm Guard", "Mjolnir", "Tempest",
 	# Loki (5-8)
-	"Illusionstorn", "Gifttorn", "Kaostorn", "Världsormen",
+	"Mirage", "Venom", "Chaos", "World Serpent",
 	# Oden (9-12)
-	"Vakttorn", "Spejartorn", "Allseende", "Yggdrasil",
+	"Sentinel", "Spyglass", "All-Seeing", "Yggdrasil",
 	# Freja (13-16)
-	"Törnesnår", "Frostvinda", "Naturens vrede", "Bifrost",
+	"Thornbriar", "Frost Wind", "Nature's Wrath", "Bifrost",
 ]
 
 const SIZES := [

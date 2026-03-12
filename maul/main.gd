@@ -423,7 +423,7 @@ func _check_wave_end() -> void:
 
 
 func _show_wave_complete_status(bonus: int) -> void:
-	_hud.show_status("Wave %d klar! +%dg" % [GameState.wave, bonus])
+	_hud.show_status("Wave %d done! +%dg" % [GameState.wave, bonus])
 	await get_tree().create_timer(2.5).timeout
 	_hud.show_status("")
 

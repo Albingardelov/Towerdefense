@@ -128,19 +128,19 @@ func _build_ui() -> void:
 	dvbox.add_child(_tower_grid)
 
 	_info_lbl = Label.new()
-	_info_lbl.text = "Tryck pa ett placerat torn"
+	_info_lbl.text = "Tap a placed tower"
 	_info_lbl.add_theme_font_size_override("font_size", 10)
 	_info_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	dvbox.add_child(_info_lbl)
 
 	var clear_btn := Button.new()
-	clear_btn.text = "Rensa alla torn"
+	clear_btn.text = "Clear all towers"
 	clear_btn.pressed.connect(func() -> void: clear_all_pressed.emit())
 	dvbox.add_child(clear_btn)
 
 	# ── Toggle button (full-width strip at very bottom) ───────
 	_tower_toggle = Button.new()
-	_tower_toggle.text = "Torn  v"
+	_tower_toggle.text = "Towers  v"
 	_tower_toggle.set_anchor(SIDE_LEFT,   0.0)
 	_tower_toggle.set_anchor(SIDE_RIGHT,  1.0)
 	_tower_toggle.set_anchor(SIDE_TOP,    1.0)
@@ -204,7 +204,7 @@ func _build_ui() -> void:
 	sp_vbox.add_child(sp_row)
 
 	var sell_btn := Button.new()
-	sell_btn.text = "Salj"
+	sell_btn.text = "Sell"
 	sell_btn.custom_minimum_size = Vector2(100, 52)
 	sell_btn.add_theme_font_size_override("font_size", 18)
 	sell_btn.pressed.connect(func() -> void:
@@ -213,7 +213,7 @@ func _build_ui() -> void:
 	sp_row.add_child(sell_btn)
 
 	var cancel_btn := Button.new()
-	cancel_btn.text = "Avbryt"
+	cancel_btn.text = "Cancel"
 	cancel_btn.custom_minimum_size = Vector2(100, 52)
 	cancel_btn.pressed.connect(func() -> void: _sell_popup.visible = false)
 	sp_row.add_child(cancel_btn)
@@ -246,7 +246,7 @@ func _build_ui() -> void:
 
 	# ── Gudval ────────────────────────────────────────────────
 	var god_sub := Label.new()
-	god_sub.text = "Välj din gud"
+	god_sub.text = "Choose your god"
 	god_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	god_sub.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
 	svbox.add_child(god_sub)
@@ -268,7 +268,7 @@ func _build_ui() -> void:
 
 	# ── Kartval ───────────────────────────────────────────────
 	var map_sub_lbl := Label.new()
-	map_sub_lbl.text = "Välj karta"
+	map_sub_lbl.text = "Choose map"
 	map_sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	map_sub_lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
 	svbox.add_child(map_sub_lbl)
@@ -278,7 +278,7 @@ func _build_ui() -> void:
 	map_row.add_theme_constant_override("separation", 20)
 	svbox.add_child(map_row)
 
-	var map_labels: Array[String] = ["Klassisk", "Mandala"]
+	var map_labels: Array[String] = ["Classic", "Mandala"]
 	var map_descs:  Array[String] = ["Upp → Ner", "Hörn → Mitten"]
 	for i in 2:
 		var mbtn := Button.new()
@@ -293,7 +293,7 @@ func _build_ui() -> void:
 
 	# ── Svårighetsgrad (startar spelet) ───────────────────────
 	var diff_sub := Label.new()
-	diff_sub.text = "Välj svårighetsgrad"
+	diff_sub.text = "Choose difficulty"
 	diff_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	diff_sub.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
 	svbox.add_child(diff_sub)
@@ -327,7 +327,7 @@ func _make_lbl(txt: String, expand: bool) -> Label:
 
 func _toggle_drawer() -> void:
 	_tower_drawer.visible = not _tower_drawer.visible
-	_tower_toggle.text    = "Torn  ^" if _tower_drawer.visible else "Torn  v"
+	_tower_toggle.text    = "Towers  ^" if _tower_drawer.visible else "Towers  v"
 
 
 func _rebuild_tower_buttons(god_idx: int) -> void:
@@ -387,7 +387,7 @@ func _on_game_restarted() -> void:
 	_countdown_lbl.text      = ""
 	_send_early_btn.text     = "Send"
 	_send_early_btn.disabled = false
-	_info_lbl.text           = "Tryck pa ett placerat torn"
+	_info_lbl.text           = "Tap a placed tower"
 	for btn in _tower_btns:
 		btn.button_pressed = false
 	for i in _map_btns.size():
