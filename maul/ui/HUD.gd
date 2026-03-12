@@ -37,6 +37,7 @@ var _sp_stats_lbl:   Label
 var _sp_price_lbl:   Label
 var _drag_side_btn:  Button
 var _drag_right:     bool = false
+var _speed_btn:      Button
 var _god_btns:       Array[Button] = []
 var _pending_god:    int = 0
 
@@ -94,6 +95,11 @@ func _build_ui() -> void:
 	_send_early_btn.text = "Send"
 	_send_early_btn.pressed.connect(func() -> void: start_wave_pressed.emit())
 	top_hbox.add_child(_send_early_btn)
+
+	_speed_btn = Button.new()
+	_speed_btn.text = "1x"
+	_speed_btn.pressed.connect(_on_speed_toggle)
+	top_hbox.add_child(_speed_btn)
 
 	_drag_side_btn = Button.new()
 	_drag_side_btn.text = "◄"
@@ -365,12 +371,16 @@ func _on_wave_completed(_wave_num: int, _bonus: int) -> void:
 
 
 func _on_game_over() -> void:
+	Engine.time_scale        = 1.0
+	_speed_btn.text          = "1x"
 	_countdown_lbl.text      = "GAME OVER"
 	_send_early_btn.text     = "Restart"
 	_send_early_btn.disabled = false
 
 
 func _on_game_restarted() -> void:
+	Engine.time_scale        = 1.0
+	_speed_btn.text          = "1x"
 	_wave_lbl.text           = "Wave: —"
 	_gold_lbl.text           = "Gold: %d" % GameState.gold
 	_escaped_lbl.text        = "Esc: 0/%d" % GameState.max_escape
@@ -438,6 +448,15 @@ func _on_tower_btn(idx: int) -> void:
 	if pos >= 0 and pos < _tower_btns.size():
 		_tower_btns[pos].button_pressed = true
 	tower_selected.emit(idx)
+
+
+func _on_speed_toggle() -> void:
+	if Engine.time_scale == 1.0:
+		Engine.time_scale = 2.0
+		_speed_btn.text   = "2x"
+	else:
+		Engine.time_scale = 1.0
+		_speed_btn.text   = "1x"
 
 
 func _on_drag_side_toggle() -> void:

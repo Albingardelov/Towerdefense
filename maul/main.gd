@@ -249,6 +249,9 @@ func _set_difficulty(idx: int) -> void:
 	GameState.difficulty = idx
 	GameState.max_escape = [100, 50, 0][idx]
 	GameState.escaped_changed.emit(GameState.escaped, GameState.max_escape)
+	if GameState.current_map == 1:  # Mandala — fyra ingångar kräver mer guld
+		GameState.gold = 1200
+		GameState.gold_changed.emit(GameState.gold)
 
 
 func _on_send_early() -> void:
