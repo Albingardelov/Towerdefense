@@ -48,8 +48,6 @@ var _speed_btn:       Button
 var _mute_btn:        Button
 var _health_bar:      ProgressBar
 var _settings_panel:  Control
-var _god_btns:           Array[Button] = []
-var _pending_god:        int = 0
 var _diff_btns:          Array[Button] = []
 var _pending_difficulty: int = 1
 
@@ -596,39 +594,6 @@ func _build_ui() -> void:
 	sc_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	svbox.add_child(sc_subtitle)
 
-	# ── Gudval ────────────────────────────────────────────────
-	svbox.add_child(_section_header("CHOOSE YOUR GOD"))
-
-	var sc_god_grid := GridContainer.new()
-	sc_god_grid.columns = 2
-	sc_god_grid.add_theme_constant_override("h_separation", 10)
-	sc_god_grid.add_theme_constant_override("v_separation", 10)
-	svbox.add_child(sc_god_grid)
-
-	for i in TowerDefs.GOD_NAMES.size():
-		var gbtn := Button.new()
-		gbtn.text        = "%s\n%s" % [TowerDefs.GOD_EMOJIS[i], TowerDefs.GOD_NAMES[i]]
-		gbtn.toggle_mode = true
-		gbtn.button_pressed = (i == 0)
-		gbtn.add_theme_font_size_override("font_size", 18)
-		gbtn.custom_minimum_size = Vector2(0, 90)
-		gbtn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var gn := StyleBoxFlat.new()
-		gn.bg_color = Color(0.08, 0.10, 0.14)
-		gn.corner_radius_top_left    = 10; gn.corner_radius_top_right    = 10
-		gn.corner_radius_bottom_left = 10; gn.corner_radius_bottom_right = 10
-		gbtn.add_theme_stylebox_override("normal", gn)
-		var gp := gn.duplicate() as StyleBoxFlat
-		gp.bg_color = Color(0.06, 0.08, 0.12)
-		gp.border_width_left = 2; gp.border_width_right = 2
-		gp.border_width_top  = 2; gp.border_width_bottom = 2
-		gp.border_color = Color(0.0, 0.85, 1.0)
-		gbtn.add_theme_stylebox_override("pressed", gp)
-		gbtn.add_theme_stylebox_override("hover",   gp.duplicate())
-		gbtn.pressed.connect(_on_god_btn.bind(i))
-		sc_god_grid.add_child(gbtn)
-		_god_btns.append(gbtn)
-
 	# ── Kartval ───────────────────────────────────────────────
 	svbox.add_child(_section_header("CHOOSE MAP"))
 
@@ -715,7 +680,7 @@ func _build_ui() -> void:
 	svbox.add_child(sc_start_btn)
 
 	var sc_footer := Label.new()
-	sc_footer.text = "CHOOSE YOUR GOD · MAP · DIFFICULTY TO BEGIN"
+	sc_footer.text = "CHOOSE MAP · DIFFICULTY TO BEGIN"
 	sc_footer.add_theme_font_size_override("font_size", 9)
 	sc_footer.add_theme_color_override("font_color", Color(0.30, 0.30, 0.38))
 	sc_footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -769,56 +734,6 @@ func _toggle_drawer() -> void:
 	_tower_drawer.visible = not _tower_drawer.visible
 	_tower_toggle.text    = "Towers  ^" if _tower_drawer.visible else "Towers  v"
 
-
-func _rebuild_tower_buttons(god_idx: int) -> void:
-	for child in _tower_grid.get_children():
-		_tower_grid.remove_child(child)
-		child.queue_free()
-	_tower_btns.clear()
-
-	for i in TowerDefs.GOD_TOWERS[god_idx]:
-		var stroke: Color = TowerDefs.STROKE[i]
-
-		var sb_normal := StyleBoxFlat.new()
-		sb_normal.bg_color                       = Color(0.07, 0.09, 0.13)
-		sb_normal.corner_radius_top_left         = 6
-		sb_normal.corner_radius_top_right        = 6
-		sb_normal.corner_radius_bottom_left      = 6
-		sb_normal.corner_radius_bottom_right     = 6
-		sb_normal.border_width_left              = 3
-		sb_normal.border_color                   = stroke
-
-		var sb_pressed := sb_normal.duplicate() as StyleBoxFlat
-		sb_pressed.bg_color          = Color(stroke.r * 0.18, stroke.g * 0.18, stroke.b * 0.18)
-		sb_pressed.border_width_left  = 3
-		sb_pressed.border_width_right = 1
-		sb_pressed.border_width_top   = 1
-		sb_pressed.border_width_bottom = 1
-		sb_pressed.border_color       = stroke
-
-		var sb_hover := sb_normal.duplicate() as StyleBoxFlat
-		sb_hover.bg_color = Color(0.10, 0.13, 0.19)
-
-		var btn := Button.new()
-		btn.text = "%s\n%s\n💰 %dg" % [
-			TowerDefs.NAMES[i],
-			_format_tower_stats_short(i),
-			TowerDefs.COST[i],
-		]
-		btn.toggle_mode               = true
-		btn.size_flags_horizontal     = Control.SIZE_EXPAND_FILL
-		btn.custom_minimum_size       = Vector2(0, 68)
-		btn.alignment                 = HORIZONTAL_ALIGNMENT_LEFT
-		btn.add_theme_font_size_override("font_size", 11)
-		btn.add_theme_color_override("font_color",         Color(stroke.r, stroke.g, stroke.b, 0.95))
-		btn.add_theme_color_override("font_pressed_color", Color(1.0, 1.0, 1.0, 1.0))
-		btn.add_theme_color_override("font_hover_color",   Color(minf(stroke.r * 1.2, 1.0), minf(stroke.g * 1.2, 1.0), minf(stroke.b * 1.2, 1.0), 1.0))
-		btn.add_theme_stylebox_override("normal",  sb_normal)
-		btn.add_theme_stylebox_override("pressed", sb_pressed)
-		btn.add_theme_stylebox_override("hover",   sb_hover)
-		btn.button_down.connect(_on_tower_btn.bind(i))
-		_tower_grid.add_child(btn)
-		_tower_btns.append(btn)
 
 # ============================================================
 # GameState signal handlers
@@ -878,10 +793,7 @@ func _on_game_restarted() -> void:
 	if _tower_drawer.visible:
 		_toggle_drawer()
 	# Återställ val
-	_pending_god        = 0
 	_pending_difficulty = 1
-	for i in _god_btns.size():
-		_god_btns[i].button_pressed = (i == 0)
 	for i in _diff_btns.size():
 		_diff_btns[i].button_pressed = (i == 1)
 	_start_screen.visible = true
@@ -1019,17 +931,60 @@ func _on_draft_pick(tower_idx: int) -> void:
 
 
 func _rebuild_tower_buttons_from_unlocked() -> void:
-	pass  # Implementeras i Task 6
+	for child in _tower_grid.get_children():
+		_tower_grid.remove_child(child)
+		child.queue_free()
+	_tower_btns.clear()
+
+	for i in GameState.unlocked_towers:
+		var stroke: Color = TowerDefs.STROKE[i]
+
+		var sb_normal := StyleBoxFlat.new()
+		sb_normal.bg_color                       = Color(0.07, 0.09, 0.13)
+		sb_normal.corner_radius_top_left         = 6
+		sb_normal.corner_radius_top_right        = 6
+		sb_normal.corner_radius_bottom_left      = 6
+		sb_normal.corner_radius_bottom_right     = 6
+		sb_normal.border_width_left              = 3
+		sb_normal.border_color                   = stroke
+
+		var sb_pressed := sb_normal.duplicate() as StyleBoxFlat
+		sb_pressed.bg_color            = Color(stroke.r * 0.18, stroke.g * 0.18, stroke.b * 0.18)
+		sb_pressed.border_width_left   = 3
+		sb_pressed.border_width_right  = 1
+		sb_pressed.border_width_top    = 1
+		sb_pressed.border_width_bottom = 1
+		sb_pressed.border_color        = stroke
+
+		var sb_hover := sb_normal.duplicate() as StyleBoxFlat
+		sb_hover.bg_color = Color(0.10, 0.13, 0.19)
+
+		var btn := Button.new()
+		btn.text = "%s\n%s\n💰 %dg" % [
+			TowerDefs.NAMES[i],
+			_format_tower_stats_short(i),
+			TowerDefs.COST[i],
+		]
+		btn.toggle_mode               = true
+		btn.size_flags_horizontal     = Control.SIZE_EXPAND_FILL
+		btn.custom_minimum_size       = Vector2(0, 68)
+		btn.alignment                 = HORIZONTAL_ALIGNMENT_LEFT
+		btn.add_theme_font_size_override("font_size", 11)
+		btn.add_theme_color_override("font_color",
+			Color(stroke.r, stroke.g, stroke.b, 0.95))
+		btn.add_theme_color_override("font_pressed_color", Color(1.0, 1.0, 1.0, 1.0))
+		btn.add_theme_color_override("font_hover_color",
+			Color(minf(stroke.r * 1.2, 1.0), minf(stroke.g * 1.2, 1.0), minf(stroke.b * 1.2, 1.0), 1.0))
+		btn.add_theme_stylebox_override("normal",  sb_normal)
+		btn.add_theme_stylebox_override("pressed", sb_pressed)
+		btn.add_theme_stylebox_override("hover",   sb_hover)
+		btn.button_down.connect(_on_tower_btn.bind(i))
+		_tower_grid.add_child(btn)
+		_tower_btns.append(btn)
 
 # ============================================================
 # Button handlers
 # ============================================================
-
-func _on_god_btn(idx: int) -> void:
-	_pending_god = idx
-	for i in _god_btns.size():
-		_god_btns[i].button_pressed = (i == idx)
-
 
 func _on_map_btn(idx: int) -> void:
 	_selected_map = idx
@@ -1044,9 +999,7 @@ func _on_diff_btn(idx: int) -> void:
 
 
 func _do_start() -> void:
-	GameState.selected_god   = _pending_god
 	GameState.wave_countdown = GameState.WAVE_INTERVAL_FIRST
-	_rebuild_tower_buttons(_pending_god)
 	map_selected.emit(_selected_map)
 	difficulty_set.emit(_pending_difficulty)
 	_start_screen.visible = false
@@ -1059,8 +1012,7 @@ func _on_start_difficulty(idx: int) -> void:
 func _on_tower_btn(idx: int) -> void:
 	for btn in _tower_btns:
 		btn.button_pressed = false
-	var god_towers: Array = TowerDefs.GOD_TOWERS[GameState.selected_god]
-	var pos: int = god_towers.find(idx)
+	var pos: int = GameState.unlocked_towers.find(idx)
 	if pos >= 0 and pos < _tower_btns.size():
 		_tower_btns[pos].button_pressed = true
 	# Visa stats-preview i info_lbl
