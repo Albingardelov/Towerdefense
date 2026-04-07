@@ -435,13 +435,30 @@ func _tick_enemies(delta: float) -> void:
 	for e in GameState.enemies:
 		if e.dead:
 			continue
+
+		# Ticka DoT
+		if e.get("dot_t", 0.0) > 0.0:
+			e["dot_t"] -= delta
+			var creep_gold_dot: int = WaveDefs.get_wave(GameState.wave).bounty
+			_apply_damage(e, e["dot_dps"] * delta, creep_gold_dot)
+			if e.dead:
+				continue
+
+		# Räkna ner slow
+		if e.get("slow_t", 0.0) > 0.0:
+			e["slow_t"] -= delta
+			if e["slow_t"] <= 0.0:
+				e["slow_factor"] = 0.0
+
 		if e.hit_flash > 0.0:
 			e.hit_flash = maxf(0.0, e.hit_flash - delta)
+
+		var eff_speed: float = e.speed * (1.0 - e.get("slow_factor", 0.0))
 
 		if e.flying:
 			var fdiff: Vector2 = e.goal - e.pos
 			var fdist: float   = fdiff.length()
-			var fmove: float   = e.speed * delta
+			var fmove: float   = eff_speed * delta
 			if fdist <= fmove:
 				GameState.add_escaped()
 				e.dead = true
@@ -457,7 +474,7 @@ func _tick_enemies(delta: float) -> void:
 		var target: Vector2  = e.waypoints[e.wp_idx]
 		var diff:   Vector2  = target - e.pos
 		var dist:   float    = diff.length()
-		var move:   float    = e.speed * delta
+		var move:   float    = eff_speed * delta
 
 		if dist <= move:
 			e.pos     = target
@@ -541,16 +558,26 @@ func _tick_projectiles(delta: float) -> void:
 				for e in GameState.enemies:
 					if e.dead: continue
 					if p.target.pos.distance_to(e.pos) <= p.splash_px:
-						_apply_damage(e, p.damage, creep_gold)
+						_apply_damage(e, p.damage, creep_gold, p.tower_type)
 			else:
-				_apply_damage(p.target, p.damage, creep_gold)
+				_apply_damage(p.target, p.damage, creep_gold, p.tower_type)
 			p.spent = true
 		else:
 			p.pos += diff.normalized() * move
 
 
-func _apply_damage(e: Dictionary, damage: float, creep_gold: int) -> void:
+func _apply_damage(e: Dictionary, damage: float, creep_gold: int,
+		tower_type: int = -1) -> void:
 	e.hp -= damage
+	# Applicera slow
+	if tower_type >= 0 and TowerDefs.SLOW[tower_type] > 0.0:
+		e["slow_factor"] = TowerDefs.SLOW[tower_type]
+		e["slow_t"]      = TowerDefs.SLOW_DUR[tower_type]
+	# Applicera DoT (ersätter befintlig om starkare)
+	if tower_type >= 0 and TowerDefs.DOT[tower_type] > 0.0:
+		if TowerDefs.DOT[tower_type] >= e.get("dot_dps", 0.0):
+			e["dot_dps"] = TowerDefs.DOT[tower_type]
+			e["dot_t"]   = TowerDefs.DOT_DUR[tower_type]
 	if e.hp <= 0.0:
 		e.hp   = 0.0
 		e.dead = true
@@ -559,13 +586,14 @@ func _apply_damage(e: Dictionary, damage: float, creep_gold: int) -> void:
 		if not e.get("flying", false):
 			GameState.corpses.append({
 				pos        = e.pos,
-				face_right = e.get("face_right", true),
 				is_boss    = e.get("is_boss", false),
+				face_right = e.get("face_right", true),
 				timer      = 0.0,
 			})
 		WaveManager.spawn_death_fx(e.pos, e.get("flying", false), e.get("is_boss", false), kg)
+		e["hit_flash"] = 0.0
 	else:
-		e.hit_flash = 0.15
+		e["hit_flash"] = 0.15
 
 # ============================================================
 # Drawing
@@ -1008,3 +1036,13 @@ func _draw_enemy(e: Dictionary) -> void:
 		var by_:   float = e.pos.y - r * 0.55
 		draw_rect(Rect2(bx, by_, bar_w, 3.0), COL_HP_BG)
 		draw_rect(Rect2(bx, by_, bar_w * (e.hp / e.max_hp), 3.0), COL_HP_FG)
+
+	# Slow-indikator — blå ring
+	if e.get("slow_t", 0.0) > 0.0:
+		var sr: float = 14.0 if e.get("is_boss", false) else 9.0
+		draw_arc(e.pos, sr, 0.0, TAU, 16, Color(0.40, 0.65, 1.00, 0.70), 1.5)
+
+	# DoT-indikator — orange ring
+	if e.get("dot_t", 0.0) > 0.0:
+		var dr: float = 12.0 if e.get("is_boss", false) else 8.0
+		draw_arc(e.pos, dr, 0.0, TAU, 16, Color(1.00, 0.55, 0.15, 0.70), 1.5)
