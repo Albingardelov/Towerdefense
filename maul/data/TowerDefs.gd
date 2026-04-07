@@ -194,5 +194,29 @@ const ANIM_SHEET: Array = []
 const ANIM_ROW:   Array = []
 const ANIM_FPS:   Array = []
 
+const TAGS: Array[Array] = [
+	["disc"],                          # 0  Destroyer
+	["disc", "aoe"],                   # 1  Buzzz
+	["disc"],                          # 2  Aviar
+	["disc", "aoe"],                   # 3  Hatchet
+	["disc"],                          # 4  Pure
+	["aoe", "matlagning"],             # 5  Gjutjärnspannan
+	["dot", "matlagning"],             # 6  Sous Vide
+	["aoe", "matlagning"],             # 7  Woken
+	["slow", "aoe", "matlagning"],     # 8  Morteln
+	["slow", "snus"],                  # 9  Göteborgs Rapé
+	["dot", "snus"],                   # 10 General White
+	["slow", "aoe", "snus"],           # 11 Oden's Extreme
+	["snus"],                          # 12 Siberia
+	["kaffe"],                         # 13 Ristretto
+	["dot", "kaffe"],                  # 14 Cold Brew
+	["kaffe"],                         # 15 Chemex
+	["gitarr"],                        # 16 Ernie Ball
+	["aoe", "gitarr"],                 # 17 Tube Screamer
+	["aoe", "muay_thai"],              # 18 Roundhouse
+	["muay_thai"],                     # 19 Elbow
+	["dot", "slow", "massage"],        # 20 Hot Stone
+]
+
 static func count() -> int:
 	return NAMES.size()
