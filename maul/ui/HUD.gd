@@ -32,10 +32,13 @@ var _info_lbl:       Label
 var _start_screen:   Control
 var _tower_drawer:   Control
 var _tower_toggle:   Button
-var _sell_popup:     Control
-var _sp_name_lbl:    Label
-var _sp_stats_lbl:   Label
-var _sp_price_lbl:   Label
+var _ic_backdrop:        ColorRect
+var _info_card:          Control
+var _ic_name_lbl:        Label
+var _ic_stats_lbl:       Label
+var _ic_sell_price_lbl:  Label
+var _ic_sell_btn:        Button
+var _ic_anim_tween:      Tween
 var _drag_side_btn:   Button
 var _drag_right:      bool = false
 var _gear_btn:        Button
@@ -341,60 +344,31 @@ func _build_ui() -> void:
 	send_margin.add_theme_constant_override("margin_right", 16)
 	send_hbox.add_child(send_margin)
 
-	# Inner wrapper — holds gradient bg + border + button
-	var send_inner := Control.new()
-	send_inner.custom_minimum_size = Vector2(162, 44)
-	send_margin.add_child(send_inner)
-
-	# Gradient background (top lighter → bottom darker)
-	var send_grad := Gradient.new()
-	send_grad.colors  = PackedColorArray([Color(1.0, 0.58, 0.14), Color(0.68, 0.24, 0.02)])
-	send_grad.offsets = PackedFloat32Array([0.0, 1.0])
-	var send_grad_tex := GradientTexture2D.new()
-	send_grad_tex.gradient  = send_grad
-	send_grad_tex.fill_from = Vector2(0.5, 0.0)
-	send_grad_tex.fill_to   = Vector2(0.5, 1.0)
-	var grad_rect := TextureRect.new()
-	grad_rect.texture      = send_grad_tex
-	grad_rect.stretch_mode = TextureRect.STRETCH_FILL
-	grad_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	grad_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	send_inner.add_child(grad_rect)
-
-	# Rounded gold border (visual only, no hit)
-	var border_sb := StyleBoxFlat.new()
-	border_sb.draw_center               = false
-	border_sb.border_color              = Color(1.0, 0.72, 0.28, 0.55)
-	border_sb.border_width_left         = 1
-	border_sb.border_width_right        = 1
-	border_sb.border_width_top          = 1
-	border_sb.border_width_bottom       = 1
-	border_sb.corner_radius_top_left    = 8
-	border_sb.corner_radius_top_right   = 8
-	border_sb.corner_radius_bottom_left = 8
-	border_sb.corner_radius_bottom_right = 8
-	var border_panel := Panel.new()
-	border_panel.add_theme_stylebox_override("panel", border_sb)
-	border_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	border_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	send_inner.add_child(border_panel)
-
-	# Actual button — transparent bg, captures clicks, renders text
 	_send_early_btn = Button.new()
 	_send_early_btn.text = "SEND WAVE  »"
 	_send_early_btn.add_theme_font_size_override("font_size", 16)
-	_send_early_btn.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var send_transp := StyleBoxFlat.new()
-	send_transp.bg_color = Color(0, 0, 0, 0)
-	_send_early_btn.add_theme_stylebox_override("normal", send_transp)
-	var send_hover_sb := StyleBoxFlat.new()
-	send_hover_sb.bg_color = Color(1, 1, 1, 0.12)
-	_send_early_btn.add_theme_stylebox_override("hover", send_hover_sb)
-	var send_pressed_sb := StyleBoxFlat.new()
-	send_pressed_sb.bg_color = Color(0, 0, 0, 0.20)
-	_send_early_btn.add_theme_stylebox_override("pressed", send_pressed_sb)
+	_send_early_btn.custom_minimum_size = Vector2(162, 44)
+	_send_early_btn.add_theme_color_override("font_color", Color(0.06, 0.03, 0.01))
+
+	var _make_send_sb := func(bg: Color) -> StyleBoxFlat:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color                       = bg
+		sb.corner_radius_top_left         = 8
+		sb.corner_radius_top_right        = 8
+		sb.corner_radius_bottom_left      = 8
+		sb.corner_radius_bottom_right     = 8
+		sb.border_width_left              = 1
+		sb.border_width_right             = 1
+		sb.border_width_top               = 1
+		sb.border_width_bottom            = 1
+		sb.border_color                   = Color(1.0, 0.72, 0.28, 0.55)
+		return sb
+
+	_send_early_btn.add_theme_stylebox_override("normal",  _make_send_sb.call(Color(0.88, 0.42, 0.06)))
+	_send_early_btn.add_theme_stylebox_override("hover",   _make_send_sb.call(Color(1.00, 0.54, 0.10)))
+	_send_early_btn.add_theme_stylebox_override("pressed", _make_send_sb.call(Color(0.62, 0.28, 0.03)))
 	_send_early_btn.pressed.connect(func() -> void: start_wave_pressed.emit())
-	send_inner.add_child(_send_early_btn)
+	send_margin.add_child(_send_early_btn)
 
 	# ── Status overlay (just below top bar) ───────────────────
 	_status_lbl = Label.new()
@@ -404,65 +378,128 @@ func _build_ui() -> void:
 	_status_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
 	cl.add_child(_status_lbl)
 
-	# ── Sell popup ────────────────────────────────────────────
-	_sell_popup = ColorRect.new()
-	(_sell_popup as ColorRect).color = Color(0.0, 0.0, 0.0, 0.75)
-	_sell_popup.set_anchor(SIDE_LEFT,   0.0)
-	_sell_popup.set_anchor(SIDE_RIGHT,  1.0)
-	_sell_popup.set_anchor(SIDE_TOP,    0.0)
-	_sell_popup.set_anchor(SIDE_BOTTOM, 1.0)
-	_sell_popup.visible = false
-	cl.add_child(_sell_popup)
+	# ── Tower info card (bottom-sheet, icke-blockerande) ─────────
+	_ic_backdrop = ColorRect.new()
+	_ic_backdrop.color = Color(0.0, 0.0, 0.0, 0.0)
+	_ic_backdrop.set_anchor(SIDE_LEFT,   0.0)
+	_ic_backdrop.set_anchor(SIDE_RIGHT,  1.0)
+	_ic_backdrop.set_anchor(SIDE_TOP,    0.0)
+	_ic_backdrop.set_anchor(SIDE_BOTTOM, 1.0)
+	_ic_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ic_backdrop.gui_input.connect(_on_ic_backdrop_input)
+	cl.add_child(_ic_backdrop)
 
-	var sp_center := CenterContainer.new()
-	sp_center.set_anchor(SIDE_LEFT,   0.0)
-	sp_center.set_anchor(SIDE_RIGHT,  1.0)
-	sp_center.set_anchor(SIDE_TOP,    0.0)
-	sp_center.set_anchor(SIDE_BOTTOM, 1.0)
-	_sell_popup.add_child(sp_center)
+	_info_card = PanelContainer.new()
+	var ic_style := StyleBoxFlat.new()
+	ic_style.bg_color                       = Color(0.06, 0.08, 0.13, 0.97)
+	ic_style.corner_radius_top_left         = 14
+	ic_style.corner_radius_top_right        = 14
+	ic_style.corner_radius_bottom_left      = 0
+	ic_style.corner_radius_bottom_right     = 0
+	ic_style.border_width_top               = 1
+	ic_style.border_color                   = Color(0.20, 0.22, 0.30)
+	_info_card.add_theme_stylebox_override("panel", ic_style)
+	_info_card.set_anchor(SIDE_LEFT,   0.0)
+	_info_card.set_anchor(SIDE_RIGHT,  1.0)
+	_info_card.set_anchor(SIDE_TOP,    1.0)
+	_info_card.set_anchor(SIDE_BOTTOM, 1.0)
+	_info_card.set_offset(SIDE_TOP,    0)
+	_info_card.set_offset(SIDE_BOTTOM, -44)
+	_info_card.visible = false
+	cl.add_child(_info_card)
 
-	var sp_panel := PanelContainer.new()
-	sp_panel.custom_minimum_size = Vector2(280, 0)
-	sp_center.add_child(sp_panel)
+	var ic_margin := MarginContainer.new()
+	ic_margin.add_theme_constant_override("margin_left",   16)
+	ic_margin.add_theme_constant_override("margin_right",  16)
+	ic_margin.add_theme_constant_override("margin_top",    10)
+	ic_margin.add_theme_constant_override("margin_bottom", 12)
+	_info_card.add_child(ic_margin)
 
-	var sp_vbox := VBoxContainer.new()
-	sp_vbox.add_theme_constant_override("separation", 16)
-	sp_panel.add_child(sp_vbox)
+	var ic_vbox := VBoxContainer.new()
+	ic_vbox.add_theme_constant_override("separation", 6)
+	ic_margin.add_child(ic_vbox)
 
-	_sp_name_lbl = Label.new()
-	_sp_name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_sp_name_lbl.add_theme_font_size_override("font_size", 18)
-	sp_vbox.add_child(_sp_name_lbl)
+	# Drag-handtag
+	var ic_handle_row := HBoxContainer.new()
+	ic_handle_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	ic_vbox.add_child(ic_handle_row)
 
-	_sp_stats_lbl = Label.new()
-	_sp_stats_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_sp_stats_lbl.add_theme_font_size_override("font_size", 11)
-	_sp_stats_lbl.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75))
-	sp_vbox.add_child(_sp_stats_lbl)
+	var ic_handle := Panel.new()
+	ic_handle.custom_minimum_size = Vector2(40, 4)
+	ic_handle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ih_style := StyleBoxFlat.new()
+	ih_style.bg_color                       = Color(0.30, 0.32, 0.40)
+	ih_style.corner_radius_top_left         = 2
+	ih_style.corner_radius_top_right        = 2
+	ih_style.corner_radius_bottom_left      = 2
+	ih_style.corner_radius_bottom_right     = 2
+	ic_handle.add_theme_stylebox_override("panel", ih_style)
+	ic_handle_row.add_child(ic_handle)
 
-	_sp_price_lbl = Label.new()
-	_sp_price_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sp_vbox.add_child(_sp_price_lbl)
+	# Namnrad + stäng-knapp
+	var ic_name_row := HBoxContainer.new()
+	ic_name_row.add_theme_constant_override("separation", 0)
+	ic_vbox.add_child(ic_name_row)
 
-	var sp_row := HBoxContainer.new()
-	sp_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	sp_row.add_theme_constant_override("separation", 16)
-	sp_vbox.add_child(sp_row)
+	_ic_name_lbl = Label.new()
+	_ic_name_lbl.add_theme_font_size_override("font_size", 20)
+	_ic_name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ic_name_row.add_child(_ic_name_lbl)
 
-	var sell_btn := Button.new()
-	sell_btn.text = "Sell"
-	sell_btn.custom_minimum_size = Vector2(100, 52)
-	sell_btn.add_theme_font_size_override("font_size", 18)
-	sell_btn.pressed.connect(func() -> void:
-		_sell_popup.visible = false
+	var ic_close_btn := Button.new()
+	ic_close_btn.text = "✕"
+	ic_close_btn.flat = true
+	ic_close_btn.add_theme_font_size_override("font_size", 18)
+	ic_close_btn.add_theme_color_override("font_color", Color(0.45, 0.45, 0.55))
+	ic_close_btn.pressed.connect(_hide_info_card)
+	ic_name_row.add_child(ic_close_btn)
+
+	# Stats
+	_ic_stats_lbl = Label.new()
+	_ic_stats_lbl.add_theme_font_size_override("font_size", 13)
+	_ic_stats_lbl.add_theme_color_override("font_color", Color(0.78, 0.80, 0.88))
+	_ic_stats_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
+	ic_vbox.add_child(_ic_stats_lbl)
+
+	var ic_sep := HSeparator.new()
+	var sep_sb := StyleBoxFlat.new()
+	sep_sb.bg_color = Color(0.15, 0.17, 0.24)
+	ic_sep.add_theme_stylebox_override("separator", sep_sb)
+	ic_vbox.add_child(ic_sep)
+
+	# Säljrad
+	var ic_sell_row := HBoxContainer.new()
+	ic_sell_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	ic_sell_row.add_theme_constant_override("separation", 16)
+	ic_vbox.add_child(ic_sell_row)
+
+	_ic_sell_price_lbl = Label.new()
+	_ic_sell_price_lbl.add_theme_font_size_override("font_size", 15)
+	_ic_sell_price_lbl.add_theme_color_override("font_color", Color(1.0, 0.80, 0.0))
+	_ic_sell_price_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ic_sell_row.add_child(_ic_sell_price_lbl)
+
+	_ic_sell_btn = Button.new()
+	_ic_sell_btn.text = "SELL  💰"
+	_ic_sell_btn.custom_minimum_size = Vector2(110, 44)
+	_ic_sell_btn.add_theme_font_size_override("font_size", 15)
+	var ic_sell_sb := StyleBoxFlat.new()
+	ic_sell_sb.bg_color                       = Color(0.75, 0.22, 0.12)
+	ic_sell_sb.corner_radius_top_left         = 8
+	ic_sell_sb.corner_radius_top_right        = 8
+	ic_sell_sb.corner_radius_bottom_left      = 8
+	ic_sell_sb.corner_radius_bottom_right     = 8
+	_ic_sell_btn.add_theme_stylebox_override("normal", ic_sell_sb)
+	var ic_sell_hover := ic_sell_sb.duplicate() as StyleBoxFlat
+	ic_sell_hover.bg_color = Color(0.90, 0.28, 0.14)
+	_ic_sell_btn.add_theme_stylebox_override("hover",   ic_sell_hover)
+	var ic_sell_press := ic_sell_sb.duplicate() as StyleBoxFlat
+	ic_sell_press.bg_color = Color(0.55, 0.15, 0.08)
+	_ic_sell_btn.add_theme_stylebox_override("pressed", ic_sell_press)
+	_ic_sell_btn.pressed.connect(func() -> void:
+		_hide_info_card()
 		sell_tower_pressed.emit())
-	sp_row.add_child(sell_btn)
-
-	var cancel_btn := Button.new()
-	cancel_btn.text = "Cancel"
-	cancel_btn.custom_minimum_size = Vector2(100, 52)
-	cancel_btn.pressed.connect(func() -> void: _sell_popup.visible = false)
-	sp_row.add_child(cancel_btn)
+	ic_sell_row.add_child(_ic_sell_btn)
 
 	# ── Start screen (added last = renders on top) ────────────
 	_start_screen = ColorRect.new()
@@ -642,6 +679,37 @@ func _build_ui() -> void:
 # Private helpers
 # ============================================================
 
+func _format_tower_stats(type: int) -> String:
+	var dps: float = TowerDefs.DAMAGE[type] * TowerDefs.FIRERATE[type]
+	var sz: Vector2i = TowerDefs.SIZES[type]
+	var size_str := "" if sz == Vector2i(1, 1) else "  ▣ %d×%d" % [sz.x, sz.y]
+	var aoe_str := "  ◎ %.1ft" % TowerDefs.SPLASH[type] if TowerDefs.AOE[type] else ""
+	var air_str := "  ✈ ×%.0f" % TowerDefs.AIR_MULT[type] \
+		if TowerDefs.AIR_MULT[type] > 1.0 else ""
+	return "⚔ %.0f  📡 %.1ft  ⚡ %.2f/s\n◈ %.0f dps%s%s%s" % [
+		TowerDefs.DAMAGE[type],
+		TowerDefs.RANGE[type],
+		TowerDefs.FIRERATE[type],
+		dps,
+		aoe_str,
+		air_str,
+		size_str,
+	]
+
+
+func _format_tower_stats_short(type: int) -> String:
+	var dps: float = TowerDefs.DAMAGE[type] * TowerDefs.FIRERATE[type]
+	var aoe_dot := " ◎" if TowerDefs.AOE[type] else ""
+	var air_dot := " ✈" if TowerDefs.AIR_MULT[type] > 1.0 else ""
+	return "⚔ %.0f  📡 %.1ft%s%s\n◈ %.0f dps" % [
+		TowerDefs.DAMAGE[type],
+		TowerDefs.RANGE[type],
+		aoe_dot,
+		air_dot,
+		dps,
+	]
+
+
 func _make_lbl(txt: String, expand: bool) -> Label:
 	var lbl: Label = Label.new()
 	lbl.text = txt
@@ -663,11 +731,45 @@ func _rebuild_tower_buttons(god_idx: int) -> void:
 	_tower_btns.clear()
 
 	for i in TowerDefs.GOD_TOWERS[god_idx]:
+		var stroke: Color = TowerDefs.STROKE[i]
+
+		var sb_normal := StyleBoxFlat.new()
+		sb_normal.bg_color                       = Color(0.07, 0.09, 0.13)
+		sb_normal.corner_radius_top_left         = 6
+		sb_normal.corner_radius_top_right        = 6
+		sb_normal.corner_radius_bottom_left      = 6
+		sb_normal.corner_radius_bottom_right     = 6
+		sb_normal.border_width_left              = 3
+		sb_normal.border_color                   = stroke
+
+		var sb_pressed := sb_normal.duplicate() as StyleBoxFlat
+		sb_pressed.bg_color          = Color(stroke.r * 0.18, stroke.g * 0.18, stroke.b * 0.18)
+		sb_pressed.border_width_left  = 3
+		sb_pressed.border_width_right = 1
+		sb_pressed.border_width_top   = 1
+		sb_pressed.border_width_bottom = 1
+		sb_pressed.border_color       = stroke
+
+		var sb_hover := sb_normal.duplicate() as StyleBoxFlat
+		sb_hover.bg_color = Color(0.10, 0.13, 0.19)
+
 		var btn := Button.new()
-		btn.text = "%s\n%dg" % [TowerDefs.NAMES[i], TowerDefs.COST[i]]
-		btn.toggle_mode = true
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.custom_minimum_size   = Vector2(0, 52)
+		btn.text = "%s\n%s\n💰 %dg" % [
+			TowerDefs.NAMES[i],
+			_format_tower_stats_short(i),
+			TowerDefs.COST[i],
+		]
+		btn.toggle_mode               = true
+		btn.size_flags_horizontal     = Control.SIZE_EXPAND_FILL
+		btn.custom_minimum_size       = Vector2(0, 68)
+		btn.alignment                 = HORIZONTAL_ALIGNMENT_LEFT
+		btn.add_theme_font_size_override("font_size", 11)
+		btn.add_theme_color_override("font_color",         Color(stroke.r, stroke.g, stroke.b, 0.95))
+		btn.add_theme_color_override("font_pressed_color", Color(1.0, 1.0, 1.0, 1.0))
+		btn.add_theme_color_override("font_hover_color",   Color(minf(stroke.r * 1.2, 1.0), minf(stroke.g * 1.2, 1.0), minf(stroke.b * 1.2, 1.0), 1.0))
+		btn.add_theme_stylebox_override("normal",  sb_normal)
+		btn.add_theme_stylebox_override("pressed", sb_pressed)
+		btn.add_theme_stylebox_override("hover",   sb_hover)
 		btn.button_down.connect(_on_tower_btn.bind(i))
 		_tower_grid.add_child(btn)
 		_tower_btns.append(btn)
@@ -720,7 +822,9 @@ func _on_game_restarted() -> void:
 	_send_early_btn.text        = "SEND WAVE  »"
 	_send_btn_wrap.visible      = true
 	_send_early_btn.disabled    = false
-	_info_lbl.text           = "Tap a placed tower"
+	_info_lbl.text = "Tap a placed tower"
+	_info_lbl.add_theme_color_override("font_color", Color(0.70, 0.70, 0.75))
+	_hide_info_card()
 	for btn in _tower_btns:
 		btn.button_pressed = false
 	for i in _map_btns.size():
@@ -739,16 +843,70 @@ func _on_game_restarted() -> void:
 
 func _on_tower_inspected(tower: Dictionary) -> void:
 	if tower.is_empty():
-		_sell_popup.visible = false
+		_hide_info_card()
 		return
 	var type: int = tower.type
-	var aoe_str := " | AOE %.1ft" % TowerDefs.SPLASH[type] if TowerDefs.AOE[type] else ""
+	var stroke: Color = TowerDefs.STROKE[type]
 	var sell_price: int = int(TowerDefs.COST[type] * 0.75)
-	_sp_name_lbl.text  = TowerDefs.NAMES[type]
-	_sp_stats_lbl.text = "%.0f skada  |  %.1f räckvidd  |  %.2f/s%s" % [
-		TowerDefs.DAMAGE[type], TowerDefs.RANGE[type], TowerDefs.FIRERATE[type], aoe_str]
-	_sp_price_lbl.text = "Refund: %dg" % sell_price
-	_sell_popup.visible = true
+	_ic_name_lbl.text = TowerDefs.NAMES[type]
+	_ic_name_lbl.add_theme_color_override("font_color", stroke)
+	# Uppdatera top-border-färgen på info-kortet till tornets stroke-färg
+	var ic_style := StyleBoxFlat.new()
+	ic_style.bg_color                   = Color(0.06, 0.08, 0.13, 0.97)
+	ic_style.corner_radius_top_left     = 14
+	ic_style.corner_radius_top_right    = 14
+	ic_style.corner_radius_bottom_left  = 0
+	ic_style.corner_radius_bottom_right = 0
+	ic_style.border_width_top           = 2
+	ic_style.border_color               = stroke
+	_info_card.add_theme_stylebox_override("panel", ic_style)
+	_ic_stats_lbl.text       = _format_tower_stats(type)
+	_ic_sell_price_lbl.text  = "💰 Refund: %dg" % sell_price
+	_show_info_card()
+
+
+func _show_info_card() -> void:
+	_info_card.visible = true
+	_ic_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
+	await get_tree().process_frame
+	var card_h: float = _info_card.size.y
+	_info_card.set_offset(SIDE_TOP,    card_h)
+	_info_card.set_offset(SIDE_BOTTOM, card_h - 44)
+	if _ic_anim_tween and _ic_anim_tween.is_valid():
+		_ic_anim_tween.kill()
+	_ic_anim_tween = get_tree().create_tween()
+	_ic_anim_tween.set_ease(Tween.EASE_OUT)
+	_ic_anim_tween.set_trans(Tween.TRANS_CUBIC)
+	_ic_anim_tween.tween_method(
+		func(v: float) -> void:
+			_info_card.set_offset(SIDE_TOP,    v)
+			_info_card.set_offset(SIDE_BOTTOM, v - 44),
+		card_h, -card_h, 0.28
+	)
+
+
+func _hide_info_card() -> void:
+	if not _info_card.visible:
+		return
+	_ic_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var card_h: float = _info_card.size.y
+	if _ic_anim_tween and _ic_anim_tween.is_valid():
+		_ic_anim_tween.kill()
+	_ic_anim_tween = get_tree().create_tween()
+	_ic_anim_tween.set_ease(Tween.EASE_IN)
+	_ic_anim_tween.set_trans(Tween.TRANS_CUBIC)
+	_ic_anim_tween.tween_method(
+		func(v: float) -> void:
+			_info_card.set_offset(SIDE_TOP,    v)
+			_info_card.set_offset(SIDE_BOTTOM, v - 44),
+		-card_h, card_h, 0.20
+	)
+	_ic_anim_tween.tween_callback(func() -> void: _info_card.visible = false)
+
+
+func _on_ic_backdrop_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
+		_hide_info_card()
 
 # ============================================================
 # Button handlers
@@ -788,11 +946,14 @@ func _on_start_difficulty(idx: int) -> void:
 func _on_tower_btn(idx: int) -> void:
 	for btn in _tower_btns:
 		btn.button_pressed = false
-	# Hitta och markera rätt knapp
 	var god_towers: Array = TowerDefs.GOD_TOWERS[GameState.selected_god]
 	var pos: int = god_towers.find(idx)
 	if pos >= 0 and pos < _tower_btns.size():
 		_tower_btns[pos].button_pressed = true
+	# Visa stats-preview i info_lbl
+	var stroke: Color = TowerDefs.STROKE[idx]
+	_info_lbl.text = "%s — 💰 %dg\n%s" % [TowerDefs.NAMES[idx], TowerDefs.COST[idx], _format_tower_stats(idx)]
+	_info_lbl.add_theme_color_override("font_color", Color(stroke.r, stroke.g, stroke.b, 0.90))
 	tower_selected.emit(idx)
 
 

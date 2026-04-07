@@ -92,7 +92,8 @@ static func bfs_path(entry: Vector2i, exit_p: Vector2i,
 	return path
 
 
-static func path_to_pixels(path: Array, cell: int) -> PackedVector2Array:
+static func path_to_pixels(path: Array, cell: int,
+		blocked: PackedByteArray = PackedByteArray()) -> PackedVector2Array:
 	var result := PackedVector2Array()
 	var half   := float(cell) * 0.5
 	if path.is_empty():
@@ -107,15 +108,60 @@ static func path_to_pixels(path: Array, cell: int) -> PackedVector2Array:
 			result.append(v)
 		return result
 
-	# Path smoothing: behåll bara hörn (riktningsbyten), ta bort collineära mellanpunkter
+	# Line-of-sight string pulling:
+	# Från varje ankarpunkt, hoppa direkt till det längst bort belägna målet
+	# som kan nås i rak linje utan att passera ett torn.
+	# I öppen terräng kollapsar hela listan till en rak linje.
+	if blocked.is_empty():
+		blocked = build_blocked()
+
 	result.append(raw[0])
-	for i in range(1, raw.size() - 1):
-		var d1 := (raw[i] - raw[i - 1]).normalized()
-		var d2 := (raw[i + 1] - raw[i]).normalized()
-		if not d1.is_equal_approx(d2):
-			result.append(raw[i])
-	result.append(raw[raw.size() - 1])
+	var anchor := 0
+	while anchor < raw.size() - 1:
+		var farthest := anchor + 1
+		for j in range(anchor + 2, raw.size()):
+			if _los(raw[anchor], raw[j], blocked, half):
+				farthest = j
+		result.append(raw[farthest])
+		anchor = farthest
 	return result
+
+
+static func _los(from: Vector2, to: Vector2,
+		blocked: PackedByteArray, half: float) -> bool:
+	# Supercover Bresenham — vid diagonalt steg kollas båda angränsande celler
+	# för att förhindra att linjen smiter genom ett hörn där två torn möts.
+	var x0 := int(from.x / half)
+	var y0 := int(from.y / half)
+	var x1 := int(to.x / half)
+	var y1 := int(to.y / half)
+	var dx  := absi(x1 - x0)
+	var dy  := absi(y1 - y0)
+	var sx  := 1 if x0 < x1 else -1
+	var sy  := 1 if y0 < y1 else -1
+	var err := dx - dy
+
+	var _cell_blocked := func(cx: int, cy: int) -> bool:
+		return cx >= 0 and cx < SCOLS and cy >= 0 and cy < SROWS \
+			and blocked[cy * SCOLS + cx] == 1
+
+	while true:
+		if _cell_blocked.call(x0, y0):
+			return false
+		if x0 == x1 and y0 == y1:
+			break
+		var e2 := 2 * err
+		# Diagonalt steg — kolla båda sidocellerna för att stoppa corner-cutting
+		if e2 > -dy and e2 < dx:
+			if _cell_blocked.call(x0 + sx, y0) or _cell_blocked.call(x0, y0 + sy):
+				return false
+		if e2 > -dy:
+			err -= dy
+			x0  += sx
+		if e2 < dx:
+			err += dx
+			y0  += sy
+	return true
 
 
 static func rebuild(cell: int) -> void:
@@ -134,7 +180,7 @@ static func _rebuild_classic(cell: int) -> void:
 	GameState.current_paths = [GameState.current_path]
 	if GameState.current_path.is_empty():
 		return
-	var new_waypoints := path_to_pixels(GameState.current_path, cell)
+	var new_waypoints := path_to_pixels(GameState.current_path, cell, blocked)
 	_reroute_enemy_group(-1, new_waypoints, blocked, cell)
 
 
@@ -153,7 +199,7 @@ static func _rebuild_mandala(cell: int) -> void:
 	for i in GameState.current_paths.size():
 		if GameState.current_paths[i].is_empty():
 			continue
-		var new_wp := path_to_pixels(GameState.current_paths[i], cell)
+		var new_wp := path_to_pixels(GameState.current_paths[i], cell, blocked)
 		_reroute_enemy_group(i, new_wp, blocked, cell)
 
 
