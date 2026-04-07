@@ -79,8 +79,8 @@ func _ready() -> void:
 	_proj_tex     = load("res://assets/Part 2/69.png")
 	_orc_walk_tex  = load("res://assets/Orc/Orc/Orc-Walk.png")
 	_orc_death_tex = load("res://assets/Orc/Orc/Orc-Death.png")
-	for i in TowerDefs.count():
-		_tower_texs.append(load(TowerDefs.ANIM_SHEET[i]))
+	# Tower textures no longer used — towers are drawn procedurally
+	_tower_texs.clear()
 	_floor_tex = load("res://assets/Floor_Tileset/floor_tiles.png")
 
 	var env := Environment.new()
@@ -103,6 +103,10 @@ func _ready() -> void:
 	_hud.sell_tower_pressed.connect(_on_sell_tower)
 	_hud.drag_side_changed.connect(func(right: bool) -> void: _drag_right = right)
 	add_child(_hud)
+
+	GameState.wave_completed.connect(func(wave_num: int, _bonus: int) -> void:
+		if wave_num % 5 == 0:
+			_trigger_draft())
 
 	# Konfigurera klassisk karta som standard
 	_on_map_selected(0)
@@ -228,6 +232,8 @@ func _handle_tap(local: Vector2) -> void:
 # ============================================================
 
 func _on_map_selected(idx: int) -> void:
+	if not GameState.game_started and GameState.unlocked_towers.is_empty():
+		_give_starting_towers()
 	GameState.current_map  = idx
 	Pathfinder.map_mode    = idx
 	if idx == 1:  # Mandala — fyra hörn mot mitten
@@ -435,13 +441,30 @@ func _tick_enemies(delta: float) -> void:
 	for e in GameState.enemies:
 		if e.dead:
 			continue
+
+		# Ticka DoT
+		if e.get("dot_t", 0.0) > 0.0:
+			e["dot_t"] -= delta
+			var creep_gold_dot: int = WaveDefs.get_wave(GameState.wave).bounty
+			_apply_damage(e, e["dot_dps"] * delta, creep_gold_dot)
+			if e.dead:
+				continue
+
+		# Räkna ner slow
+		if e.get("slow_t", 0.0) > 0.0:
+			e["slow_t"] -= delta
+			if e["slow_t"] <= 0.0:
+				e["slow_factor"] = 0.0
+
 		if e.hit_flash > 0.0:
 			e.hit_flash = maxf(0.0, e.hit_flash - delta)
+
+		var eff_speed: float = e.speed * (1.0 - e.get("slow_factor", 0.0))
 
 		if e.flying:
 			var fdiff: Vector2 = e.goal - e.pos
 			var fdist: float   = fdiff.length()
-			var fmove: float   = e.speed * delta
+			var fmove: float   = eff_speed * delta
 			if fdist <= fmove:
 				GameState.add_escaped()
 				e.dead = true
@@ -457,7 +480,7 @@ func _tick_enemies(delta: float) -> void:
 		var target: Vector2  = e.waypoints[e.wp_idx]
 		var diff:   Vector2  = target - e.pos
 		var dist:   float    = diff.length()
-		var move:   float    = e.speed * delta
+		var move:   float    = eff_speed * delta
 
 		if dist <= move:
 			e.pos     = target
@@ -466,6 +489,30 @@ func _tick_enemies(delta: float) -> void:
 			if abs(diff.x) > 1.0:
 				e.face_right = diff.x > 0.0
 			e.pos += diff.normalized() * move
+
+
+# ============================================================
+# Draft
+# ============================================================
+
+func _trigger_draft() -> void:
+	var pool: Array[int] = []
+	for i in TowerDefs.count():
+		if not GameState.unlocked_towers.has(i):
+			pool.append(i)
+	pool.shuffle()
+	var offer: Array[int] = pool.slice(0, mini(3, pool.size()))
+	GameState.draft_pending = true
+	GameState.draft_ready.emit(offer)
+
+
+func _give_starting_towers() -> void:
+	var all: Array[int] = []
+	for i in TowerDefs.count():
+		all.append(i)
+	all.shuffle()
+	for i in mini(2, all.size()):
+		GameState.unlocked_towers.append(all[i])
 
 
 # ============================================================
@@ -541,16 +588,26 @@ func _tick_projectiles(delta: float) -> void:
 				for e in GameState.enemies:
 					if e.dead: continue
 					if p.target.pos.distance_to(e.pos) <= p.splash_px:
-						_apply_damage(e, p.damage, creep_gold)
+						_apply_damage(e, p.damage, creep_gold, p.tower_type)
 			else:
-				_apply_damage(p.target, p.damage, creep_gold)
+				_apply_damage(p.target, p.damage, creep_gold, p.tower_type)
 			p.spent = true
 		else:
 			p.pos += diff.normalized() * move
 
 
-func _apply_damage(e: Dictionary, damage: float, creep_gold: int) -> void:
+func _apply_damage(e: Dictionary, damage: float, creep_gold: int,
+		tower_type: int = -1) -> void:
 	e.hp -= damage
+	# Applicera slow
+	if tower_type >= 0 and TowerDefs.SLOW[tower_type] > 0.0:
+		e["slow_factor"] = TowerDefs.SLOW[tower_type]
+		e["slow_t"]      = TowerDefs.SLOW_DUR[tower_type]
+	# Applicera DoT (ersätter befintlig om starkare)
+	if tower_type >= 0 and TowerDefs.DOT[tower_type] > 0.0:
+		if TowerDefs.DOT[tower_type] >= e.get("dot_dps", 0.0):
+			e["dot_dps"] = TowerDefs.DOT[tower_type]
+			e["dot_t"]   = TowerDefs.DOT_DUR[tower_type]
 	if e.hp <= 0.0:
 		e.hp   = 0.0
 		e.dead = true
@@ -559,13 +616,14 @@ func _apply_damage(e: Dictionary, damage: float, creep_gold: int) -> void:
 		if not e.get("flying", false):
 			GameState.corpses.append({
 				pos        = e.pos,
-				face_right = e.get("face_right", true),
 				is_boss    = e.get("is_boss", false),
+				face_right = e.get("face_right", true),
 				timer      = 0.0,
 			})
 		WaveManager.spawn_death_fx(e.pos, e.get("flying", false), e.get("is_boss", false), kg)
+		e["hit_flash"] = 0.0
 	else:
-		e.hit_flash = 0.15
+		e["hit_flash"] = 0.15
 
 # ============================================================
 # Drawing
@@ -839,122 +897,172 @@ func _draw_tower(pos: Vector2, sz: Vector2i, type: int, alpha: float) -> void:
 	var r := CELL * 0.40
 
 	match type:
-		# ── Tor ────────────────────────────────────────────────────
-		0:  # Cornerstone — oktagon + inre diamant
-			_tdraw(_tpoly(cx, cy, r, 8, PI / 8.0), fill, stroke)
-			_tdraw(_tpoly(cx, cy, r * 0.38, 4, 0.0), stroke, stroke, 1.0)
-
-		1:  # Lightning Rod — spetsig diamant med mittstick
-			_tdraw(_tpoly(cx, cy, r, 4, 0.0), fill, stroke)
-			draw_line(Vector2(cx, cy - r * 0.55), Vector2(cx, cy + r * 0.55), stroke, 1.5)
-
-		2:  # Storm Guard — oktagon + inre ring
-			_tdraw(_tpoly(cx, cy, r, 8, PI / 8.0), fill, stroke)
-			draw_arc(Vector2(cx, cy), r * 0.52, 0.0, TAU, 32, stroke, 1.5)
-
-		3:  # Mjolnir (2×2) — hammarkors
-			var arm := pw * 0.18
-			_tdraw(PackedVector2Array([
-				Vector2(cx - arm,        py + ph * 0.06),
-				Vector2(cx + arm,        py + ph * 0.06),
-				Vector2(cx + arm,        cy - arm),
-				Vector2(cx + pw * 0.44,  cy - arm),
-				Vector2(cx + pw * 0.44,  cy + arm),
-				Vector2(cx + arm,        cy + arm),
-				Vector2(cx + arm,        py + ph * 0.94),
-				Vector2(cx - arm,        py + ph * 0.94),
-				Vector2(cx - arm,        cy + arm),
-				Vector2(cx - pw * 0.44,  cy + arm),
-				Vector2(cx - pw * 0.44,  cy - arm),
-				Vector2(cx - arm,        cy - arm),
-			]), fill, stroke, 2.0)
-
-		4:  # Tempest — 8-uddastjärna
-			_tdraw(_tstar(cx, cy, r, r * 0.42, 8, -PI / 8.0), fill, stroke)
-
-		# ── Loki ───────────────────────────────────────────────────
-		5:  # Mirage — roterad diamant med inre fyrkant
-			_tdraw(_tpoly(cx, cy, r, 4, PI / 4.0), fill, stroke)
-			_tdraw(_tpoly(cx, cy, r * 0.42, 4, 0.0), stroke, stroke, 1.0)
-
-		6:  # Venom — 6-uddastjärna (giftdroppar)
-			_tdraw(_tstar(cx, cy, r, r * 0.48, 6, -PI / 2.0), fill, stroke)
-
-		7:  # Chaos — ojämn 6-udda form
-			_tdraw(PackedVector2Array([
-				Vector2(cx + cos(-PI*0.50) * r,        cy + sin(-PI*0.50) * r),
-				Vector2(cx + cos(-PI*0.17) * r * 0.52, cy + sin(-PI*0.17) * r * 0.52),
-				Vector2(cx + cos( PI*0.17) * r,        cy + sin( PI*0.17) * r),
-				Vector2(cx + cos( PI*0.42) * r * 0.48, cy + sin( PI*0.42) * r * 0.48),
-				Vector2(cx + cos( PI*0.75) * r,        cy + sin( PI*0.75) * r),
-				Vector2(cx + cos( PI*1.08) * r * 0.55, cy + sin( PI*1.08) * r * 0.55),
-			]), fill, stroke)
-
-		8:  # World Serpent (1×3) — tre staplade diamanter längs pelaren
-			var seg_h := ph / 3.0
-			var sr    := seg_h * 0.36
-			draw_line(Vector2(cx, py + sr), Vector2(cx, py + ph - sr), stroke, 2.0)
-			for i in 3:
-				var sy := py + seg_h * i + seg_h * 0.5
-				_tdraw(_tpoly(cx, sy, sr, 4, 0.0), fill, stroke)
-
-		# ── Oden ───────────────────────────────────────────────────
-		9:  # Sentinel — vakttornsilhuett (rektangel + spets)
-			var tw := pw * 0.48
-			_tdraw(PackedVector2Array([
-				Vector2(cx - tw * 0.5, py + ph * 0.88),
-				Vector2(cx - tw * 0.5, py + ph * 0.32),
-				Vector2(cx,            py + ph * 0.10),
-				Vector2(cx + tw * 0.5, py + ph * 0.32),
-				Vector2(cx + tw * 0.5, py + ph * 0.88),
-			]), fill, stroke)
-
-		10:  # Spyglass — cirkel + hårkors
+		0:  # Destroyer — flying disc
 			draw_circle(Vector2(cx, cy), r, fill)
 			draw_arc(Vector2(cx, cy), r, 0.0, TAU, 48, stroke, 1.5)
 			draw_line(Vector2(cx - r, cy), Vector2(cx + r, cy), stroke, 1.0)
-			draw_line(Vector2(cx, cy - r), Vector2(cx, cy + r), stroke, 1.0)
-			draw_circle(Vector2(cx, cy), r * 0.16, stroke)
 
-		11:  # All-Seeing — öga (ellips + pupill)
-			var eye := PackedVector2Array()
-			for i in 24:
-				var a := TAU * i / 24.0
-				eye.append(Vector2(cx + cos(a) * r, cy + sin(a) * (r * 0.48)))
-			_tdraw(eye, fill, stroke)
-			draw_circle(Vector2(cx, cy), r * 0.26, stroke)
-			draw_circle(Vector2(cx, cy), r * 0.11, fill)
+		1:  # Buzzz — disc med inre ring
+			draw_circle(Vector2(cx, cy), r, fill)
+			draw_arc(Vector2(cx, cy), r, 0.0, TAU, 48, stroke, 1.5)
+			draw_arc(Vector2(cx, cy), r * 0.52, 0.0, TAU, 32, stroke, 1.0)
 
-		12:  # Yggdrasil (2×2) — stor cirkel + 4 satellitpunkter
-			draw_circle(Vector2(cx, cy), r * 1.5, fill)
-			draw_arc(Vector2(cx, cy), r * 1.5, 0.0, TAU, 64, stroke, 2.0)
-			for i in 4:
-				var a := PI / 4.0 + TAU * i / 4.0
-				var sp := Vector2(cx + cos(a) * r * 1.82, cy + sin(a) * r * 1.82)
-				draw_circle(sp, r * 0.28, stroke)
+		2:  # Aviar — putter, kompakt kvadrat
+			var ar := r * 0.75
+			_tdraw(PackedVector2Array([
+				Vector2(cx - ar, cy - ar), Vector2(cx + ar, cy - ar),
+				Vector2(cx + ar, cy + ar), Vector2(cx - ar, cy + ar),
+			]), fill, stroke, 2.0)
+			draw_circle(Vector2(cx, cy), ar * 0.28, stroke)
 
-		# ── Freja ──────────────────────────────────────────────────
-		13:  # Thornbriar — taggig hexagon (törnen)
-			_tdraw(_tstar(cx, cy, r, r * 0.68, 6, -PI / 2.0), fill, stroke)
+		3:  # Hatchet — yxform
+			_tdraw(PackedVector2Array([
+				Vector2(cx,          cy - r),
+				Vector2(cx + r*0.7,  cy - r*0.2),
+				Vector2(cx + r*0.5,  cy + r*0.6),
+				Vector2(cx - r*0.5,  cy + r*0.6),
+				Vector2(cx - r*0.7,  cy - r*0.2),
+			]), fill, stroke)
 
-		14:  # Frost Wind — dubbel hexagon (snöflinga)
+		4:  # Pure — smal aerodynamisk diamant
+			_tdraw(PackedVector2Array([
+				Vector2(cx,          cy - r),
+				Vector2(cx + r*0.35, cy),
+				Vector2(cx,          cy + r),
+				Vector2(cx - r*0.35, cy),
+			]), fill, stroke)
+
+		5:  # Gjutjärnspannan — cirkel + handtag
+			draw_circle(Vector2(cx - r*0.1, cy), r * 0.78, fill)
+			draw_arc(Vector2(cx - r*0.1, cy), r * 0.78, 0.0, TAU, 48, stroke, 1.5)
+			_tdraw(PackedVector2Array([
+				Vector2(cx + r*0.65, cy - r*0.15),
+				Vector2(cx + r*1.10, cy - r*0.15),
+				Vector2(cx + r*1.10, cy + r*0.15),
+				Vector2(cx + r*0.65, cy + r*0.15),
+			]), fill, stroke, 1.5)
+
+		6:  # Sous Vide — avlång rektangel (vakuumpåse)
+			_tdraw(PackedVector2Array([
+				Vector2(cx - r*0.55, cy - r*0.90),
+				Vector2(cx + r*0.55, cy - r*0.90),
+				Vector2(cx + r*0.55, cy + r*0.90),
+				Vector2(cx - r*0.55, cy + r*0.90),
+			]), fill, stroke)
+			draw_line(Vector2(cx - r*0.35, cy - r*0.55),
+					  Vector2(cx + r*0.35, cy - r*0.55), stroke, 1.0)
+
+		7:  # Woken — wok-form (halvcirkel)
+			var wp := PackedVector2Array()
+			for wi in 14:
+				var wa := PI + PI * wi / 13.0
+				wp.append(Vector2(cx + cos(wa) * r, cy + sin(wa) * r * 0.7))
+			wp.append(Vector2(cx + r, cy))
+			wp.append(Vector2(cx - r, cy))
+			_tdraw(wp, fill, stroke)
+
+		8:  # Morteln — U-form
+			var mp := PackedVector2Array()
+			for mi in 10:
+				var ma := PI + PI * mi / 9.0
+				mp.append(Vector2(cx + cos(ma) * r * 0.85, cy + sin(ma) * r * 0.75))
+			mp.append(Vector2(cx + r * 0.85, cy - r * 0.1))
+			mp.append(Vector2(cx - r * 0.85, cy - r * 0.1))
+			_tdraw(mp, fill, stroke)
+			draw_line(Vector2(cx - r, cy - r * 0.1),
+					  Vector2(cx + r, cy - r * 0.1), stroke, 1.5)
+
+		9:  # Göteborgs Rapé — rund snusdosa
+			draw_circle(Vector2(cx, cy), r, fill)
+			draw_arc(Vector2(cx, cy), r, 0.0, TAU, 48, stroke, 1.5)
+			draw_arc(Vector2(cx, cy), r * 0.65, 0.0, TAU, 32, stroke, 0.8)
+			draw_circle(Vector2(cx, cy), r * 0.12, stroke)
+
+		10: # General White — oktagon
+			_tdraw(_tpoly(cx, cy, r, 8, PI / 8.0), fill, stroke)
+			draw_circle(Vector2(cx, cy), r * 0.22, stroke)
+
+		11: # Oden's Extreme — pentagonstjärna
+			_tdraw(_tstar(cx, cy, r, r * 0.42, 5, -PI / 2.0), fill, stroke, 2.0)
+
+		12: # Siberia — tjock diamant
+			_tdraw(_tpoly(cx, cy, r, 4, 0.0), fill, stroke, 2.5)
+			_tdraw(_tpoly(cx, cy, r * 0.50, 4, 0.0), stroke, stroke, 1.5)
+
+		13: # Ristretto — espressokopp
+			_tdraw(PackedVector2Array([
+				Vector2(cx - r*0.50, cy - r*0.55),
+				Vector2(cx + r*0.50, cy - r*0.55),
+				Vector2(cx + r*0.50, cy + r*0.30),
+				Vector2(cx - r*0.50, cy + r*0.30),
+			]), fill, stroke, 2.0)
+			draw_line(Vector2(cx - r*0.70, cy + r*0.30),
+					  Vector2(cx + r*0.70, cy + r*0.30), stroke, 1.5)
+
+		14: # Cold Brew — långt glas
+			_tdraw(PackedVector2Array([
+				Vector2(cx - r*0.40, cy - r*0.95),
+				Vector2(cx + r*0.40, cy - r*0.95),
+				Vector2(cx + r*0.40, cy + r*0.95),
+				Vector2(cx - r*0.40, cy + r*0.95),
+			]), fill, stroke)
+			draw_line(Vector2(cx - r*0.40, cy + r*0.20),
+					  Vector2(cx + r*0.40, cy + r*0.20), stroke, 0.8)
+
+		15: # Chemex — timglasform
+			_tdraw(PackedVector2Array([
+				Vector2(cx - r*0.70, cy - r*0.95),
+				Vector2(cx + r*0.70, cy - r*0.95),
+				Vector2(cx + r*0.20, cy - r*0.05),
+				Vector2(cx + r*0.55, cy + r*0.95),
+				Vector2(cx - r*0.55, cy + r*0.95),
+				Vector2(cx - r*0.20, cy - r*0.05),
+			]), fill, stroke)
+
+		16: # Ernie Ball — strängspole (hexagon)
 			_tdraw(_tpoly(cx, cy, r, 6, 0.0), fill, stroke)
-			_tdraw(_tpoly(cx, cy, r * 0.52, 6, PI / 6.0), stroke, stroke, 1.0)
+			for ei in 3:
+				var ea := TAU * ei / 3.0
+				draw_line(Vector2(cx, cy),
+					Vector2(cx + cos(ea) * r * 0.80, cy + sin(ea) * r * 0.80),
+					stroke, 1.0)
 
-		15:  # Nature's Wrath — blomma (6-bladig stjärna + mittcirkel)
-			_tdraw(_tstar(cx, cy, r, r * 0.52, 6, -PI / 2.0), fill, stroke)
-			draw_circle(Vector2(cx, cy), r * 0.24, stroke)
+		17: # Tube Screamer — pedalform
+			_tdraw(PackedVector2Array([
+				Vector2(cx - r*0.65, cy - r*0.80),
+				Vector2(cx + r*0.65, cy - r*0.80),
+				Vector2(cx + r*0.80, cy - r*0.30),
+				Vector2(cx + r*0.80, cy + r*0.80),
+				Vector2(cx - r*0.80, cy + r*0.80),
+				Vector2(cx - r*0.80, cy - r*0.30),
+			]), fill, stroke)
+			draw_circle(Vector2(cx, cy - r*0.20), r * 0.25, stroke)
 
-		16:  # Bifrost (1×3) — tre cirklar längs pelare i regnbågsfärger
-			var seg_h2 := ph / 3.0
-			var sr2    := seg_h2 * 0.34
-			draw_line(Vector2(cx, py + sr2), Vector2(cx, py + ph - sr2), stroke, 2.5)
-			var tints := [Color(1.0, 0.38, 0.68), Color(0.68, 0.38, 1.0), Color(0.38, 0.68, 1.0)]
-			for i in 3:
-				var sy2 := py + seg_h2 * i + seg_h2 * 0.5
-				var tc: Color = tints[i]; tc.a = alpha
-				draw_circle(Vector2(cx, sy2), sr2, tc)
-				draw_arc(Vector2(cx, sy2), sr2, 0.0, TAU, 20, stroke, 1.5)
+		18: # Roundhouse — kickcirkel
+			var rp := PackedVector2Array()
+			for ri in 20:
+				var ra := -PI * 0.1 + TAU * 0.65 * ri / 19.0
+				rp.append(Vector2(cx + cos(ra) * r, cy + sin(ra) * r))
+			rp.append(Vector2(cx, cy))
+			_tdraw(rp, fill, stroke)
+
+		19: # Elbow — skarp triangel
+			_tdraw(PackedVector2Array([
+				Vector2(cx,      cy - r),
+				Vector2(cx + r,  cy + r * 0.70),
+				Vector2(cx,      cy + r * 0.20),
+				Vector2(cx - r,  cy + r * 0.70),
+			]), fill, stroke, 2.0)
+
+		20: # Hot Stone — oregelbunden sten
+			_tdraw(PackedVector2Array([
+				Vector2(cx - r*0.30, cy - r*0.90),
+				Vector2(cx + r*0.55, cy - r*0.65),
+				Vector2(cx + r*0.90, cy + r*0.20),
+				Vector2(cx + r*0.20, cy + r*0.90),
+				Vector2(cx - r*0.80, cy + r*0.50),
+				Vector2(cx - r*0.85, cy - r*0.30),
+			]), fill, stroke)
 
 		_:  # fallback
 			draw_rect(Rect2(px + 1, py + 1, pw - 2, ph - 2), fill)
@@ -1008,3 +1116,13 @@ func _draw_enemy(e: Dictionary) -> void:
 		var by_:   float = e.pos.y - r * 0.55
 		draw_rect(Rect2(bx, by_, bar_w, 3.0), COL_HP_BG)
 		draw_rect(Rect2(bx, by_, bar_w * (e.hp / e.max_hp), 3.0), COL_HP_FG)
+
+	# Slow-indikator — blå ring
+	if e.get("slow_t", 0.0) > 0.0:
+		var sr: float = 14.0 if e.get("is_boss", false) else 9.0
+		draw_arc(e.pos, sr, 0.0, TAU, 16, Color(0.40, 0.65, 1.00, 0.70), 1.5)
+
+	# DoT-indikator — orange ring
+	if e.get("dot_t", 0.0) > 0.0:
+		var dr: float = 12.0 if e.get("is_boss", false) else 8.0
+		draw_arc(e.pos, dr, 0.0, TAU, 16, Color(1.00, 0.55, 0.15, 0.70), 1.5)

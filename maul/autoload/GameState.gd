@@ -52,7 +52,10 @@ var difficulty:   int  = 1   # 0=Easy  1=Medium  2=Hard
 var gold:         int  = 500
 var game_started: bool = false
 var game_over:    bool = false
-var selected_god: int  = 0   # 0=Tor  1=Loki  2=Oden  3=Freja
+signal draft_ready(offer: Array[int])   # emittas med 3 tornindex
+
+var unlocked_towers: Array[int] = []    # vilka torn spelaren fått via draft
+var draft_pending:   bool       = false # väntar på spelarens val
 
 # ============================================================
 # Placement state
@@ -112,7 +115,9 @@ func reset() -> void:
 	gold         = 500
 	game_started = false
 	game_over    = false
-	selected_god = 0
+
+	unlocked_towers.clear()
+	draft_pending = false
 
 	hover_pos   = Vector2(-1.0, -1.0)
 	hover_valid = false
