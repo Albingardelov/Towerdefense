@@ -51,11 +51,12 @@ static func bfs_path(entry: Vector2i, exit_p: Vector2i,
 	if queue.is_empty():
 		return []
 
-	var dirs := [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]
-	var goal  := Vector2i(-1, -1)
-	var ex0   := exit_p.x * 2
-	var ey0   := exit_p.y * 2
-	var head  := 0
+	var base_dirs := [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]
+	var goal      := Vector2i(-1, -1)
+	var ex0       := exit_p.x * 2
+	var ey0       := exit_p.y * 2
+	var head      := 0
+	var goal_sub  := Vector2i(exit_p.x * 2 + 1, exit_p.y * 2 + 1)
 
 	while head < queue.size():
 		var cur: Vector2i = queue[head]
@@ -63,6 +64,12 @@ static func bfs_path(entry: Vector2i, exit_p: Vector2i,
 		if cur.x >= ex0 and cur.x <= ex0 + 1 and cur.y >= ey0 and cur.y <= ey0 + 1:
 			goal = cur
 			break
+		# Tie-breaking: utforska riktningar som rör sig mot målet först
+		var dirs := base_dirs.duplicate()
+		dirs.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+			var da := (cur + a - goal_sub).length_squared()
+			var db := (cur + b - goal_sub).length_squared()
+			return da < db)
 		for d in dirs:
 			var nxt: Vector2i = cur + d
 			if nxt.x < 0 or nxt.y < 0 or nxt.x >= SCOLS or nxt.y >= SROWS:
@@ -88,8 +95,26 @@ static func bfs_path(entry: Vector2i, exit_p: Vector2i,
 static func path_to_pixels(path: Array, cell: int) -> PackedVector2Array:
 	var result := PackedVector2Array()
 	var half   := float(cell) * 0.5
+	if path.is_empty():
+		return result
+
+	var raw: Array[Vector2] = []
 	for p: Vector2i in path:
-		result.append(Vector2((p.x + 0.5) * half, (p.y + 0.5) * half))
+		raw.append(Vector2((p.x + 0.5) * half, (p.y + 0.5) * half))
+
+	if raw.size() <= 2:
+		for v in raw:
+			result.append(v)
+		return result
+
+	# Path smoothing: behåll bara hörn (riktningsbyten), ta bort collineära mellanpunkter
+	result.append(raw[0])
+	for i in range(1, raw.size() - 1):
+		var d1 := (raw[i] - raw[i - 1]).normalized()
+		var d2 := (raw[i + 1] - raw[i]).normalized()
+		if not d1.is_equal_approx(d2):
+			result.append(raw[i])
+	result.append(raw[raw.size() - 1])
 	return result
 
 

@@ -22,6 +22,7 @@ var _tower_grid:     GridContainer
 var _map_btns:       Array[Button] = []
 var _selected_map:   int    = 0
 var _send_early_btn: Button
+var _send_btn_wrap:  Control
 var _countdown_lbl:  Label
 var _status_lbl:     Label
 var _escaped_lbl:    Label
@@ -35,12 +36,17 @@ var _sell_popup:     Control
 var _sp_name_lbl:    Label
 var _sp_stats_lbl:   Label
 var _sp_price_lbl:   Label
-var _drag_side_btn:  Button
-var _drag_right:     bool = false
-var _speed_btn:      Button
-var _mute_btn:       Button
-var _god_btns:       Array[Button] = []
-var _pending_god:    int = 0
+var _drag_side_btn:   Button
+var _drag_right:      bool = false
+var _gear_btn:        Button
+var _speed_btn:       Button
+var _mute_btn:        Button
+var _health_bar:      ProgressBar
+var _settings_panel:  Control
+var _god_btns:           Array[Button] = []
+var _pending_god:        int = 0
+var _diff_btns:          Array[Button] = []
+var _pending_difficulty: int = 1
 
 # ============================================================
 # Lifecycle
@@ -70,47 +76,206 @@ func _build_ui() -> void:
 
 	# ── Top bar ───────────────────────────────────────────────
 	var top_bar := PanelContainer.new()
+	var tb_style := StyleBoxFlat.new()
+	tb_style.bg_color = Color(0.04, 0.06, 0.10)
+	top_bar.add_theme_stylebox_override("panel", tb_style)
 	top_bar.set_anchor(SIDE_LEFT,   0.0)
 	top_bar.set_anchor(SIDE_RIGHT,  1.0)
 	top_bar.set_anchor(SIDE_TOP,    0.0)
 	top_bar.set_anchor(SIDE_BOTTOM, 0.0)
-	top_bar.set_offset(SIDE_BOTTOM, 52)
+	top_bar.set_offset(SIDE_BOTTOM, 64)
 	cl.add_child(top_bar)
 
-	var top_hbox := HBoxContainer.new()
-	top_hbox.add_theme_constant_override("separation", 6)
-	top_bar.add_child(top_hbox)
+	var outer_hbox := HBoxContainer.new()
+	outer_hbox.add_theme_constant_override("separation", 0)
+	top_bar.add_child(outer_hbox)
 
-	_wave_lbl    = _make_lbl("Wave: —",               true)
-	_gold_lbl    = _make_lbl("Gold: %d" % GameState.gold, true)
-	_escaped_lbl = _make_lbl("Esc: 0/%d" % GameState.max_escape, true)
-	_countdown_lbl = _make_lbl("", false)
-	_countdown_lbl.add_theme_font_size_override("font_size", 10)
+	# Vänster — sköld + MAZE TD
+	var left_margin := MarginContainer.new()
+	left_margin.add_theme_constant_override("margin_left",  12)
+	left_margin.add_theme_constant_override("margin_right",  8)
+	outer_hbox.add_child(left_margin)
 
-	top_hbox.add_child(_wave_lbl)
-	top_hbox.add_child(_gold_lbl)
-	top_hbox.add_child(_escaped_lbl)
-	top_hbox.add_child(_countdown_lbl)
+	var left_box := HBoxContainer.new()
+	left_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	left_box.add_theme_constant_override("separation", 6)
+	left_margin.add_child(left_box)
 
-	_send_early_btn = Button.new()
-	_send_early_btn.text = "Send"
-	_send_early_btn.pressed.connect(func() -> void: start_wave_pressed.emit())
-	top_hbox.add_child(_send_early_btn)
+	var shield_lbl := Label.new()
+	shield_lbl.text = "🛡"
+	shield_lbl.add_theme_font_size_override("font_size", 28)
+	shield_lbl.add_theme_color_override("font_color", Color(0.0, 0.85, 1.0))
+	left_box.add_child(shield_lbl)
 
-	_speed_btn = Button.new()
-	_speed_btn.text = "1x"
-	_speed_btn.pressed.connect(_on_speed_toggle)
-	top_hbox.add_child(_speed_btn)
+	var title_lbl := Label.new()
+	title_lbl.text = "MAZE\nTD"
+	title_lbl.add_theme_font_size_override("font_size", 15)
+	title_lbl.add_theme_color_override("font_color", Color(0.0, 0.85, 1.0))
+	left_box.add_child(title_lbl)
 
-	_mute_btn = Button.new()
-	_mute_btn.text = "🔊"
-	_mute_btn.pressed.connect(_on_mute_toggle)
-	top_hbox.add_child(_mute_btn)
+	# Spacer
+	var spacer1 := Control.new()
+	spacer1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	outer_hbox.add_child(spacer1)
 
-	_drag_side_btn = Button.new()
-	_drag_side_btn.text = "◄"
-	_drag_side_btn.pressed.connect(_on_drag_side_toggle)
-	top_hbox.add_child(_drag_side_btn)
+	# Mitten — pill med guld + liv
+	var pill := PanelContainer.new()
+	var pill_style := StyleBoxFlat.new()
+	pill_style.bg_color                       = Color(0.09, 0.11, 0.16)
+	pill_style.corner_radius_top_left         = 22
+	pill_style.corner_radius_top_right        = 22
+	pill_style.corner_radius_bottom_left      = 22
+	pill_style.corner_radius_bottom_right     = 22
+	pill.add_theme_stylebox_override("panel", pill_style)
+	outer_hbox.add_child(pill)
+
+	var pill_margin := MarginContainer.new()
+	pill_margin.add_theme_constant_override("margin_left",   16)
+	pill_margin.add_theme_constant_override("margin_right",  16)
+	pill_margin.add_theme_constant_override("margin_top",     6)
+	pill_margin.add_theme_constant_override("margin_bottom",  6)
+	pill.add_child(pill_margin)
+
+	var pill_hbox := HBoxContainer.new()
+	pill_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	pill_hbox.add_theme_constant_override("separation", 10)
+	pill_margin.add_child(pill_hbox)
+
+	# Guld
+	var coin_lbl := Label.new()
+	coin_lbl.text = "$"
+	coin_lbl.add_theme_font_size_override("font_size", 20)
+	coin_lbl.add_theme_color_override("font_color", Color(1.0, 0.80, 0.0))
+	pill_hbox.add_child(coin_lbl)
+
+	_gold_lbl = Label.new()
+	_gold_lbl.text = _format_number(GameState.gold)
+	_gold_lbl.add_theme_font_size_override("font_size", 18)
+	pill_hbox.add_child(_gold_lbl)
+
+	# Avdelare
+	var vsep := Panel.new()
+	vsep.custom_minimum_size = Vector2(1, 26)
+	var vsep_style := StyleBoxFlat.new()
+	vsep_style.bg_color = Color(0.25, 0.27, 0.32)
+	vsep.add_theme_stylebox_override("panel", vsep_style)
+	pill_hbox.add_child(vsep)
+
+	# Hjärta
+	var heart_lbl := Label.new()
+	heart_lbl.text = "♥"
+	heart_lbl.add_theme_font_size_override("font_size", 16)
+	heart_lbl.add_theme_color_override("font_color", Color(0.95, 0.25, 0.35))
+	pill_hbox.add_child(heart_lbl)
+
+	_health_bar = ProgressBar.new()
+	_health_bar.max_value = GameState.max_escape
+	_health_bar.value     = GameState.max_escape
+	_health_bar.custom_minimum_size = Vector2(90, 10)
+	_health_bar.show_percentage = false
+	var bar_bg := StyleBoxFlat.new()
+	bar_bg.bg_color                       = Color(0.15, 0.08, 0.08)
+	bar_bg.corner_radius_top_left         = 5
+	bar_bg.corner_radius_top_right        = 5
+	bar_bg.corner_radius_bottom_left      = 5
+	bar_bg.corner_radius_bottom_right     = 5
+	_health_bar.add_theme_stylebox_override("background", bar_bg)
+	var bar_fill := StyleBoxFlat.new()
+	bar_fill.bg_color                       = Color(0.90, 0.22, 0.28)
+	bar_fill.corner_radius_top_left         = 5
+	bar_fill.corner_radius_top_right        = 5
+	bar_fill.corner_radius_bottom_left      = 5
+	bar_fill.corner_radius_bottom_right     = 5
+	_health_bar.add_theme_stylebox_override("fill", bar_fill)
+	pill_hbox.add_child(_health_bar)
+
+	_escaped_lbl = Label.new()
+	_escaped_lbl.text = "%d/%d" % [GameState.max_escape, GameState.max_escape]
+	_escaped_lbl.add_theme_font_size_override("font_size", 12)
+	_escaped_lbl.add_theme_color_override("font_color", Color(0.70, 0.70, 0.75))
+	pill_hbox.add_child(_escaped_lbl)
+
+	# Spacer
+	var spacer2 := Control.new()
+	spacer2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	outer_hbox.add_child(spacer2)
+
+	# Höger — wave-info + knappar
+	var right_margin := MarginContainer.new()
+	right_margin.add_theme_constant_override("margin_right", 12)
+	right_margin.add_theme_constant_override("margin_left",   8)
+	outer_hbox.add_child(right_margin)
+
+	var right_box := HBoxContainer.new()
+	right_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	right_box.add_theme_constant_override("separation", 6)
+	right_margin.add_child(right_box)
+
+	var wave_vbox := VBoxContainer.new()
+	wave_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	wave_vbox.add_theme_constant_override("separation", 0)
+	right_box.add_child(wave_vbox)
+
+	var wave_sub_lbl := Label.new()
+	wave_sub_lbl.text = "WAVE"
+	wave_sub_lbl.add_theme_font_size_override("font_size", 9)
+	wave_sub_lbl.add_theme_color_override("font_color", Color(0.45, 0.45, 0.55))
+	wave_sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	wave_vbox.add_child(wave_sub_lbl)
+
+	_wave_lbl = Label.new()
+	_wave_lbl.text = "— /\n40"
+	_wave_lbl.add_theme_font_size_override("font_size", 18)
+	_wave_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	wave_vbox.add_child(_wave_lbl)
+
+	_countdown_lbl = Label.new()
+	_countdown_lbl.text = ""
+	_countdown_lbl.add_theme_font_size_override("font_size", 9)
+	_countdown_lbl.add_theme_color_override("font_color", Color(0.45, 0.45, 0.55))
+	_countdown_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	wave_vbox.add_child(_countdown_lbl)
+
+	_gear_btn = Button.new()
+	_gear_btn.text = "⚙"
+	_gear_btn.add_theme_font_size_override("font_size", 22)
+	_gear_btn.flat = true
+	_gear_btn.pressed.connect(_on_settings_toggle)
+	right_box.add_child(_gear_btn)
+
+	# ── Settings-panel (dold som standard, öppnas med kugghjulet) ──
+	_settings_panel = PanelContainer.new()
+	var sp_style := StyleBoxFlat.new()
+	sp_style.bg_color                       = Color(0.06, 0.08, 0.12, 0.97)
+	sp_style.corner_radius_bottom_left      = 10
+	sp_style.corner_radius_bottom_right     = 10
+	sp_style.border_width_top               = 0
+	_settings_panel.add_theme_stylebox_override("panel", sp_style)
+	_settings_panel.set_anchor(SIDE_RIGHT,  1.0)
+	_settings_panel.set_anchor(SIDE_TOP,    0.0)
+	_settings_panel.set_anchor(SIDE_LEFT,   1.0)
+	_settings_panel.set_anchor(SIDE_BOTTOM, 0.0)
+	_settings_panel.set_offset(SIDE_LEFT,   -180)
+	_settings_panel.set_offset(SIDE_TOP,    64)
+	_settings_panel.set_offset(SIDE_BOTTOM, 64 + 140)
+	_settings_panel.visible = false
+	cl.add_child(_settings_panel)
+
+	var sp_vbox2 := VBoxContainer.new()
+	sp_vbox2.add_theme_constant_override("separation", 4)
+	_settings_panel.add_child(sp_vbox2)
+
+	_speed_btn = _make_settings_row(sp_vbox2, "⚡", "2x SPEED", _on_speed_toggle)
+	_mute_btn  = _make_settings_row(sp_vbox2, "🔊", "SOUND ON",  _on_mute_toggle)
+	_drag_side_btn = _make_settings_row(sp_vbox2, "◄", "DRAG LEFT", _on_drag_side_toggle)
+
+	var close_row := Button.new()
+	close_row.text = "CLOSE  ✕"
+	close_row.flat = true
+	close_row.add_theme_font_size_override("font_size", 11)
+	close_row.add_theme_color_override("font_color", Color(0.45, 0.45, 0.55))
+	close_row.pressed.connect(func() -> void: _settings_panel.visible = false)
+	sp_vbox2.add_child(close_row)
 
 	# ── Tower drawer (bottom, hidden by default) ──────────────
 	_tower_drawer = PanelContainer.new()
@@ -155,6 +320,81 @@ func _build_ui() -> void:
 	_tower_toggle.set_offset(SIDE_BOTTOM, 0)
 	_tower_toggle.pressed.connect(_toggle_drawer)
 	cl.add_child(_tower_toggle)
+
+	# ── Send Wave overlay (bottom-right, synligt mellan waves) ──
+	_send_btn_wrap = Control.new()
+	_send_btn_wrap.set_anchor(SIDE_LEFT,   0.0)
+	_send_btn_wrap.set_anchor(SIDE_RIGHT,  1.0)
+	_send_btn_wrap.set_anchor(SIDE_TOP,    1.0)
+	_send_btn_wrap.set_anchor(SIDE_BOTTOM, 1.0)
+	_send_btn_wrap.set_offset(SIDE_TOP,    -104)
+	_send_btn_wrap.set_offset(SIDE_BOTTOM, -55)
+	cl.add_child(_send_btn_wrap)
+
+	# Right-align the button strip
+	var send_hbox := HBoxContainer.new()
+	send_hbox.alignment = BoxContainer.ALIGNMENT_END
+	send_hbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_send_btn_wrap.add_child(send_hbox)
+
+	var send_margin := MarginContainer.new()
+	send_margin.add_theme_constant_override("margin_right", 16)
+	send_hbox.add_child(send_margin)
+
+	# Inner wrapper — holds gradient bg + border + button
+	var send_inner := Control.new()
+	send_inner.custom_minimum_size = Vector2(162, 44)
+	send_margin.add_child(send_inner)
+
+	# Gradient background (top lighter → bottom darker)
+	var send_grad := Gradient.new()
+	send_grad.colors  = PackedColorArray([Color(1.0, 0.58, 0.14), Color(0.68, 0.24, 0.02)])
+	send_grad.offsets = PackedFloat32Array([0.0, 1.0])
+	var send_grad_tex := GradientTexture2D.new()
+	send_grad_tex.gradient  = send_grad
+	send_grad_tex.fill_from = Vector2(0.5, 0.0)
+	send_grad_tex.fill_to   = Vector2(0.5, 1.0)
+	var grad_rect := TextureRect.new()
+	grad_rect.texture      = send_grad_tex
+	grad_rect.stretch_mode = TextureRect.STRETCH_FILL
+	grad_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	grad_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	send_inner.add_child(grad_rect)
+
+	# Rounded gold border (visual only, no hit)
+	var border_sb := StyleBoxFlat.new()
+	border_sb.draw_center               = false
+	border_sb.border_color              = Color(1.0, 0.72, 0.28, 0.55)
+	border_sb.border_width_left         = 1
+	border_sb.border_width_right        = 1
+	border_sb.border_width_top          = 1
+	border_sb.border_width_bottom       = 1
+	border_sb.corner_radius_top_left    = 8
+	border_sb.corner_radius_top_right   = 8
+	border_sb.corner_radius_bottom_left = 8
+	border_sb.corner_radius_bottom_right = 8
+	var border_panel := Panel.new()
+	border_panel.add_theme_stylebox_override("panel", border_sb)
+	border_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	border_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	send_inner.add_child(border_panel)
+
+	# Actual button — transparent bg, captures clicks, renders text
+	_send_early_btn = Button.new()
+	_send_early_btn.text = "SEND WAVE  »"
+	_send_early_btn.add_theme_font_size_override("font_size", 16)
+	_send_early_btn.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var send_transp := StyleBoxFlat.new()
+	send_transp.bg_color = Color(0, 0, 0, 0)
+	_send_early_btn.add_theme_stylebox_override("normal", send_transp)
+	var send_hover_sb := StyleBoxFlat.new()
+	send_hover_sb.bg_color = Color(1, 1, 1, 0.12)
+	_send_early_btn.add_theme_stylebox_override("hover", send_hover_sb)
+	var send_pressed_sb := StyleBoxFlat.new()
+	send_pressed_sb.bg_color = Color(0, 0, 0, 0.20)
+	_send_early_btn.add_theme_stylebox_override("pressed", send_pressed_sb)
+	_send_early_btn.pressed.connect(func() -> void: start_wave_pressed.emit())
+	send_inner.add_child(_send_early_btn)
 
 	# ── Status overlay (just below top bar) ───────────────────
 	_status_lbl = Label.new()
@@ -226,97 +466,177 @@ func _build_ui() -> void:
 
 	# ── Start screen (added last = renders on top) ────────────
 	_start_screen = ColorRect.new()
-	(_start_screen as ColorRect).color = Color(0.05, 0.07, 0.10, 0.96)
+	(_start_screen as ColorRect).color = Color(0.04, 0.05, 0.08, 0.98)
 	_start_screen.set_anchor(SIDE_LEFT,   0.0)
 	_start_screen.set_anchor(SIDE_RIGHT,  1.0)
 	_start_screen.set_anchor(SIDE_TOP,    0.0)
 	_start_screen.set_anchor(SIDE_BOTTOM, 1.0)
 	cl.add_child(_start_screen)
 
-	var center := CenterContainer.new()
-	center.set_anchor(SIDE_LEFT,   0.0)
-	center.set_anchor(SIDE_RIGHT,  1.0)
-	center.set_anchor(SIDE_TOP,    0.0)
-	center.set_anchor(SIDE_BOTTOM, 1.0)
-	_start_screen.add_child(center)
+	var sc_scroll := ScrollContainer.new()
+	sc_scroll.set_anchor(SIDE_LEFT,   0.0)
+	sc_scroll.set_anchor(SIDE_RIGHT,  1.0)
+	sc_scroll.set_anchor(SIDE_TOP,    0.0)
+	sc_scroll.set_anchor(SIDE_BOTTOM, 1.0)
+	sc_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_start_screen.add_child(sc_scroll)
+
+	var sc_outer := VBoxContainer.new()
+	sc_outer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc_scroll.add_child(sc_outer)
+
+	var sc_margin := MarginContainer.new()
+	sc_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc_margin.add_theme_constant_override("margin_left",   20)
+	sc_margin.add_theme_constant_override("margin_right",  20)
+	sc_margin.add_theme_constant_override("margin_top",    24)
+	sc_margin.add_theme_constant_override("margin_bottom", 24)
+	sc_outer.add_child(sc_margin)
 
 	var svbox := VBoxContainer.new()
-	svbox.add_theme_constant_override("separation", 20)
-	center.add_child(svbox)
+	svbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	svbox.add_theme_constant_override("separation", 18)
+	sc_margin.add_child(svbox)
 
-	var title_lbl := Label.new()
-	title_lbl.text = "MAZE  TD"
-	title_lbl.add_theme_font_size_override("font_size", 56)
-	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	svbox.add_child(title_lbl)
+	# Logotyp
+	var main_title := Label.new()
+	main_title.text = "MAZE TD"
+	main_title.add_theme_font_size_override("font_size", 52)
+	main_title.add_theme_color_override("font_color", Color(0.0, 0.85, 1.0))
+	main_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	svbox.add_child(main_title)
+
+	var sc_subtitle := Label.new()
+	sc_subtitle.text = "ETHEREAL MONOLITH ASCENSION"
+	sc_subtitle.add_theme_font_size_override("font_size", 10)
+	sc_subtitle.add_theme_color_override("font_color", Color(0.85, 0.55, 0.10))
+	sc_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	svbox.add_child(sc_subtitle)
 
 	# ── Gudval ────────────────────────────────────────────────
-	var god_sub := Label.new()
-	god_sub.text = "Choose your god"
-	god_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	god_sub.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
-	svbox.add_child(god_sub)
+	svbox.add_child(_section_header("CHOOSE YOUR GOD"))
 
-	var god_row := HBoxContainer.new()
-	god_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	god_row.add_theme_constant_override("separation", 10)
-	svbox.add_child(god_row)
+	var sc_god_grid := GridContainer.new()
+	sc_god_grid.columns = 2
+	sc_god_grid.add_theme_constant_override("h_separation", 10)
+	sc_god_grid.add_theme_constant_override("v_separation", 10)
+	svbox.add_child(sc_god_grid)
 
 	for i in TowerDefs.GOD_NAMES.size():
 		var gbtn := Button.new()
-		gbtn.text = "%s\n%s" % [TowerDefs.GOD_EMOJIS[i], TowerDefs.GOD_NAMES[i]]
-		gbtn.custom_minimum_size = Vector2(80, 64)
+		gbtn.text        = "%s\n%s" % [TowerDefs.GOD_EMOJIS[i], TowerDefs.GOD_NAMES[i]]
 		gbtn.toggle_mode = true
 		gbtn.button_pressed = (i == 0)
+		gbtn.add_theme_font_size_override("font_size", 18)
+		gbtn.custom_minimum_size = Vector2(0, 90)
+		gbtn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var gn := StyleBoxFlat.new()
+		gn.bg_color = Color(0.08, 0.10, 0.14)
+		gn.corner_radius_top_left    = 10; gn.corner_radius_top_right    = 10
+		gn.corner_radius_bottom_left = 10; gn.corner_radius_bottom_right = 10
+		gbtn.add_theme_stylebox_override("normal", gn)
+		var gp := gn.duplicate() as StyleBoxFlat
+		gp.bg_color = Color(0.06, 0.08, 0.12)
+		gp.border_width_left = 2; gp.border_width_right = 2
+		gp.border_width_top  = 2; gp.border_width_bottom = 2
+		gp.border_color = Color(0.0, 0.85, 1.0)
+		gbtn.add_theme_stylebox_override("pressed", gp)
+		gbtn.add_theme_stylebox_override("hover",   gp.duplicate())
 		gbtn.pressed.connect(_on_god_btn.bind(i))
-		god_row.add_child(gbtn)
+		sc_god_grid.add_child(gbtn)
 		_god_btns.append(gbtn)
 
 	# ── Kartval ───────────────────────────────────────────────
-	var map_sub_lbl := Label.new()
-	map_sub_lbl.text = "Choose map"
-	map_sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	map_sub_lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
-	svbox.add_child(map_sub_lbl)
+	svbox.add_child(_section_header("CHOOSE MAP"))
 
-	var map_row := HBoxContainer.new()
-	map_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	map_row.add_theme_constant_override("separation", 20)
-	svbox.add_child(map_row)
+	var sc_map_row := HBoxContainer.new()
+	sc_map_row.add_theme_constant_override("separation", 10)
+	svbox.add_child(sc_map_row)
 
-	var map_labels: Array[String] = ["Classic", "Mandala"]
-	var map_descs:  Array[String] = ["Upp → Ner", "Hörn → Mitten"]
+	var sc_map_labels: Array[String] = ["Classic", "Mandala"]
+	var sc_map_icons:  Array[String] = ["⬛", "◎"]
 	for i in 2:
 		var mbtn := Button.new()
-		mbtn.text = "%s\n%s" % [map_labels[i], map_descs[i]]
+		mbtn.text = "%s\n%s" % [sc_map_icons[i], sc_map_labels[i]]
 		mbtn.toggle_mode = true
 		mbtn.button_pressed = (i == 0)
-		mbtn.custom_minimum_size = Vector2(130, 64)
 		mbtn.add_theme_font_size_override("font_size", 16)
+		mbtn.custom_minimum_size = Vector2(0, 80)
+		mbtn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var mn := StyleBoxFlat.new()
+		mn.bg_color = Color(0.08, 0.10, 0.14)
+		mn.corner_radius_top_left    = 10; mn.corner_radius_top_right    = 10
+		mn.corner_radius_bottom_left = 10; mn.corner_radius_bottom_right = 10
+		mbtn.add_theme_stylebox_override("normal", mn)
+		var mp := mn.duplicate() as StyleBoxFlat
+		mp.border_width_left = 2; mp.border_width_right = 2
+		mp.border_width_top  = 2; mp.border_width_bottom = 2
+		mp.border_color = Color(0.0, 0.85, 1.0)
+		mbtn.add_theme_stylebox_override("pressed", mp)
+		mbtn.add_theme_stylebox_override("hover",   mp.duplicate())
 		mbtn.pressed.connect(_on_map_btn.bind(i))
-		map_row.add_child(mbtn)
+		sc_map_row.add_child(mbtn)
 		_map_btns.append(mbtn)
 
-	# ── Svårighetsgrad (startar spelet) ───────────────────────
-	var diff_sub := Label.new()
-	diff_sub.text = "Choose difficulty"
-	diff_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	diff_sub.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
-	svbox.add_child(diff_sub)
+	# ── Svårighetsgrad ────────────────────────────────────────
+	svbox.add_child(_section_header("CHALLENGE"))
 
-	var diff_row := HBoxContainer.new()
-	diff_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	diff_row.add_theme_constant_override("separation", 20)
-	svbox.add_child(diff_row)
+	var sc_diff_row := HBoxContainer.new()
+	sc_diff_row.add_theme_constant_override("separation", 8)
+	svbox.add_child(sc_diff_row)
 
-	var diff_labels: Array[String] = ["Easy", "Medium", "Hard"]
+	var sc_diff_labels: Array[String] = ["EASY", "MEDIUM", "HARD"]
 	for i in 3:
 		var dbtn := Button.new()
-		dbtn.text = diff_labels[i]
-		dbtn.custom_minimum_size = Vector2(110, 72)
-		dbtn.add_theme_font_size_override("font_size", 22)
-		dbtn.pressed.connect(_on_start_difficulty.bind(i))
-		diff_row.add_child(dbtn)
+		dbtn.text = sc_diff_labels[i]
+		dbtn.toggle_mode = true
+		dbtn.button_pressed = (i == _pending_difficulty)
+		dbtn.add_theme_font_size_override("font_size", 14)
+		dbtn.custom_minimum_size = Vector2(0, 44)
+		dbtn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var dn := StyleBoxFlat.new()
+		dn.bg_color = Color(0.08, 0.10, 0.14)
+		dn.corner_radius_top_left    = 8; dn.corner_radius_top_right    = 8
+		dn.corner_radius_bottom_left = 8; dn.corner_radius_bottom_right = 8
+		dbtn.add_theme_stylebox_override("normal", dn)
+		var dp := dn.duplicate() as StyleBoxFlat
+		dp.bg_color = Color(0.12, 0.16, 0.22)
+		dp.border_width_left = 2; dp.border_width_right = 2
+		dp.border_width_top  = 2; dp.border_width_bottom = 2
+		dp.border_color = Color(0.0, 0.85, 1.0)
+		dbtn.add_theme_stylebox_override("pressed", dp)
+		dbtn.add_theme_stylebox_override("hover",   dp.duplicate())
+		dbtn.pressed.connect(_on_diff_btn.bind(i))
+		sc_diff_row.add_child(dbtn)
+		_diff_btns.append(dbtn)
+
+	# ── Start-knapp ───────────────────────────────────────────
+	var sc_start_btn := Button.new()
+	sc_start_btn.text = "▶  START GAME"
+	sc_start_btn.add_theme_font_size_override("font_size", 22)
+	sc_start_btn.custom_minimum_size = Vector2(0, 60)
+	sc_start_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var sbn := StyleBoxFlat.new()
+	sbn.bg_color = Color(0.0, 0.75, 0.90)
+	sbn.corner_radius_top_left    = 10; sbn.corner_radius_top_right    = 10
+	sbn.corner_radius_bottom_left = 10; sbn.corner_radius_bottom_right = 10
+	sc_start_btn.add_theme_stylebox_override("normal", sbn)
+	var sbh := sbn.duplicate() as StyleBoxFlat
+	sbh.bg_color = Color(0.0, 0.90, 1.0)
+	sc_start_btn.add_theme_stylebox_override("hover", sbh)
+	var sbp := sbn.duplicate() as StyleBoxFlat
+	sbp.bg_color = Color(0.0, 0.55, 0.68)
+	sc_start_btn.add_theme_stylebox_override("pressed", sbp)
+	sc_start_btn.add_theme_color_override("font_color", Color(0.04, 0.05, 0.08))
+	sc_start_btn.pressed.connect(_do_start)
+	svbox.add_child(sc_start_btn)
+
+	var sc_footer := Label.new()
+	sc_footer.text = "CHOOSE YOUR GOD · MAP · DIFFICULTY TO BEGIN"
+	sc_footer.add_theme_font_size_override("font_size", 9)
+	sc_footer.add_theme_color_override("font_color", Color(0.30, 0.30, 0.38))
+	sc_footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	svbox.add_child(sc_footer)
 
 # ============================================================
 # Private helpers
@@ -357,42 +677,49 @@ func _rebuild_tower_buttons(god_idx: int) -> void:
 # ============================================================
 
 func _on_gold_changed(amount: int) -> void:
-	_gold_lbl.text = "Gold: %d" % amount
+	_gold_lbl.text = _format_number(amount)
 
 
 func _on_escaped_changed(current: int, max_val: int) -> void:
-	_escaped_lbl.text = "Esc: %d/%d" % [current, max_val]
+	var remaining := max_val - current
+	_health_bar.max_value = max_val
+	_health_bar.value     = remaining
+	_escaped_lbl.text     = "%d/%d" % [remaining, max_val]
 
 
 func _on_wave_started(wave_num: int, _banner: String) -> void:
-	_wave_lbl.text           = "Wave: %d" % wave_num
-	_countdown_lbl.text      = ""
-	_send_early_btn.text     = "..."
-	_send_early_btn.disabled = true
+	_wave_lbl.text              = "%d /\n40" % wave_num
+	_countdown_lbl.text         = ""
+	_send_btn_wrap.visible      = false
 
 
 func _on_wave_completed(_wave_num: int, _bonus: int) -> void:
-	_send_early_btn.text     = "Send"
-	_send_early_btn.disabled = false
+	_send_early_btn.text        = "SEND WAVE  »"
+	_send_btn_wrap.visible      = true
+	_send_early_btn.disabled    = false
 
 
 func _on_game_over() -> void:
-	Engine.time_scale        = 1.0
-	_speed_btn.text          = "1x"
-	_countdown_lbl.text      = "GAME OVER"
-	_send_early_btn.text     = "Restart"
-	_send_early_btn.disabled = false
+	Engine.time_scale           = 1.0
+	_speed_btn.text             = "⚡  1x SPEED"
+	_countdown_lbl.text         = "GAME OVER"
+	_send_btn_wrap.visible      = true
+	_send_early_btn.text        = "RESTART"
+	_send_early_btn.disabled    = false
 
 
 func _on_game_restarted() -> void:
-	Engine.time_scale        = 1.0
-	_speed_btn.text          = "1x"
-	_wave_lbl.text           = "Wave: —"
-	_gold_lbl.text           = "Gold: %d" % GameState.gold
-	_escaped_lbl.text        = "Esc: 0/%d" % GameState.max_escape
-	_countdown_lbl.text      = ""
-	_send_early_btn.text     = "Send"
-	_send_early_btn.disabled = false
+	Engine.time_scale           = 1.0
+	_speed_btn.text             = "⚡  1x SPEED"
+	_wave_lbl.text              = "— /\n40"
+	_gold_lbl.text              = _format_number(GameState.gold)
+	_health_bar.max_value       = GameState.max_escape
+	_health_bar.value           = GameState.max_escape
+	_escaped_lbl.text           = "%d/%d" % [GameState.max_escape, GameState.max_escape]
+	_countdown_lbl.text         = ""
+	_send_early_btn.text        = "SEND WAVE  »"
+	_send_btn_wrap.visible      = true
+	_send_early_btn.disabled    = false
 	_info_lbl.text           = "Tap a placed tower"
 	for btn in _tower_btns:
 		btn.button_pressed = false
@@ -400,10 +727,13 @@ func _on_game_restarted() -> void:
 		_map_btns[i].button_pressed = (i == _selected_map)
 	if _tower_drawer.visible:
 		_toggle_drawer()
-	# Återställ gudval till Tor
-	_pending_god = 0
+	# Återställ val
+	_pending_god        = 0
+	_pending_difficulty = 1
 	for i in _god_btns.size():
 		_god_btns[i].button_pressed = (i == 0)
+	for i in _diff_btns.size():
+		_diff_btns[i].button_pressed = (i == 1)
 	_start_screen.visible = true
 
 
@@ -436,13 +766,23 @@ func _on_map_btn(idx: int) -> void:
 		_map_btns[i].button_pressed = (i == idx)
 
 
-func _on_start_difficulty(idx: int) -> void:
+func _on_diff_btn(idx: int) -> void:
+	_pending_difficulty = idx
+	for i in _diff_btns.size():
+		_diff_btns[i].button_pressed = (i == idx)
+
+
+func _do_start() -> void:
 	GameState.selected_god   = _pending_god
 	GameState.wave_countdown = GameState.WAVE_INTERVAL_FIRST
 	_rebuild_tower_buttons(_pending_god)
 	map_selected.emit(_selected_map)
-	difficulty_set.emit(idx)
+	difficulty_set.emit(_pending_difficulty)
 	_start_screen.visible = false
+
+
+func _on_start_difficulty(idx: int) -> void:
+	_do_start()
 
 
 func _on_tower_btn(idx: int) -> void:
@@ -456,26 +796,44 @@ func _on_tower_btn(idx: int) -> void:
 	tower_selected.emit(idx)
 
 
+func _on_settings_toggle() -> void:
+	_settings_panel.visible = not _settings_panel.visible
+
+
 func _on_mute_toggle() -> void:
 	var bus := AudioServer.get_bus_index("Master")
 	var muted := not AudioServer.is_bus_mute(bus)
 	AudioServer.set_bus_mute(bus, muted)
-	_mute_btn.text = "🔇" if muted else "🔊"
+	_mute_btn.text = "🔇  MUTED" if muted else "🔊  SOUND ON"
 
 
 func _on_speed_toggle() -> void:
 	if Engine.time_scale == 1.0:
 		Engine.time_scale = 2.0
-		_speed_btn.text   = "2x"
+		_speed_btn.text   = "⚡  2x SPEED"
 	else:
 		Engine.time_scale = 1.0
-		_speed_btn.text   = "1x"
+		_speed_btn.text   = "⚡  1x SPEED"
 
 
 func _on_drag_side_toggle() -> void:
 	_drag_right = not _drag_right
-	_drag_side_btn.text = "►" if _drag_right else "◄"
+	_drag_side_btn.text = "►  DRAG RIGHT" if _drag_right else "◄  DRAG LEFT"
 	drag_side_changed.emit(_drag_right)
+
+
+func _make_settings_row(parent: Control, icon: String,
+		label: String, callback: Callable) -> Button:
+	var btn := Button.new()
+	btn.text = "%s  %s" % [icon, label]
+	btn.flat = true
+	btn.add_theme_font_size_override("font_size", 14)
+	btn.add_theme_color_override("font_color", Color(0.85, 0.88, 0.95))
+	btn.custom_minimum_size = Vector2(0, 36)
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.pressed.connect(callback)
+	parent.add_child(btn)
+	return btn
 
 # ============================================================
 # Public helpers (called from main.gd)
@@ -494,3 +852,32 @@ func update_countdown(seconds: float, next_wave: int) -> void:
 	if GameState.wave_in_progress or GameState.game_over:
 		return
 	_countdown_lbl.text = "Wave %d  %ds" % [next_wave, int(ceil(seconds))]
+
+
+func _section_header(text: String) -> HBoxContainer:
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 10)
+	var left_sep := HSeparator.new()
+	left_sep.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(left_sep)
+	var sec_lbl := Label.new()
+	sec_lbl.text = text
+	sec_lbl.add_theme_font_size_override("font_size", 11)
+	sec_lbl.add_theme_color_override("font_color", Color(0.45, 0.48, 0.58))
+	hbox.add_child(sec_lbl)
+	var right_sep := HSeparator.new()
+	right_sep.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(right_sep)
+	return hbox
+
+
+func _format_number(n: int) -> String:
+	var s   := str(n)
+	var out := ""
+	var cnt := 0
+	for i in range(s.length() - 1, -1, -1):
+		if cnt > 0 and cnt % 3 == 0:
+			out = "," + out
+		out = s[i] + out
+		cnt += 1
+	return out

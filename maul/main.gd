@@ -11,7 +11,7 @@ const VIEWPORT_H := 660
 var ROWS: int = 22
 var CELL: int = 30
 
-const GRID_TOP := 52   # pixels the top bar occupies
+const GRID_TOP := 74   # pixels the top bar occupies (+ breathing room below header)
 const GRID_BOT := 44   # pixels the bottom toggle occupies
 
 const COL_BG      := Color(0.055, 0.048, 0.042)   # mörk stenfog
@@ -740,9 +740,49 @@ func _draw_path() -> void:
 
 func _draw_entry_exit() -> void:
 	for entry in Pathfinder.map_entries:
-		_draw_marker(entry.x, entry.y, "IN", COL_ENTRY, Color(0.05, 0.20, 0.05))
+		_draw_entry_gate(entry.x, entry.y)
 	var ep := Pathfinder.map_exit_point
-	_draw_marker(ep.x, ep.y, "OUT", COL_EXIT, Color(0.20, 0.05, 0.05))
+	_draw_exit_base(ep.x, ep.y)
+
+
+func _draw_entry_gate(col: int, row: int) -> void:
+	var x := float(col * CELL)
+	var y := float(row * CELL)
+	var c := float(CELL)
+	draw_rect(Rect2(x + 1, y + 1, c - 2, c - 2), Color(0.04, 0.18, 0.04))
+	draw_rect(Rect2(x + 1, y + 1, c - 2, c - 2), Color(0.20, 0.90, 0.20), false, 1.5)
+	# Downward arrow ▼
+	var cx := x + c * 0.5
+	var cy := y + c * 0.5
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(cx,             cy + c * 0.28),
+		Vector2(cx - c * 0.22, cy - c * 0.14),
+		Vector2(cx + c * 0.22, cy - c * 0.14),
+	]), Color(0.20, 0.90, 0.20))
+
+
+func _draw_exit_base(col: int, row: int) -> void:
+	var x := float(col * CELL)
+	var y := float(row * CELL)
+	var c := float(CELL)
+	# Background — dark warm stone
+	draw_rect(Rect2(x + 1, y + 1, c - 2, c - 2), Color(0.13, 0.10, 0.06))
+	# Outer gold border (2px)
+	draw_rect(Rect2(x + 1, y + 1, c - 2, c - 2), Color(0.88, 0.68, 0.18), false, 2.0)
+	# Battlements — 3 notches across the top
+	for i in range(3):
+		draw_rect(Rect2(x + 4.0 + i * 7.5, y + 1.0, 4.5, 4.0), Color(0.88, 0.68, 0.18))
+	# Central tower body
+	var tw := c * 0.44
+	var th := c * 0.44
+	var tx := x + c * 0.5 - tw * 0.5
+	var ty := y + c * 0.30
+	draw_rect(Rect2(tx, ty, tw, th), Color(0.19, 0.15, 0.09))
+	draw_rect(Rect2(tx, ty, tw, th), Color(0.88, 0.68, 0.18), false, 1.0)
+	# Gate opening (dark arch at tower bottom)
+	var gw := tw * 0.46
+	var gh := th * 0.52
+	draw_rect(Rect2(tx + tw * 0.5 - gw * 0.5, ty + th - gh, gw, gh), Color(0.04, 0.03, 0.02))
 
 
 func _draw_marker(col: int, row: int, label: String, stroke: Color, fill: Color) -> void:
