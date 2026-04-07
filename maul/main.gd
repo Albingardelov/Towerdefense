@@ -79,8 +79,8 @@ func _ready() -> void:
 	_proj_tex     = load("res://assets/Part 2/69.png")
 	_orc_walk_tex  = load("res://assets/Orc/Orc/Orc-Walk.png")
 	_orc_death_tex = load("res://assets/Orc/Orc/Orc-Death.png")
-	for i in TowerDefs.count():
-		_tower_texs.append(load(TowerDefs.ANIM_SHEET[i]))
+	# Tower textures no longer used — towers are drawn procedurally
+	_tower_texs.clear()
 	_floor_tex = load("res://assets/Floor_Tileset/floor_tiles.png")
 
 	var env := Environment.new()
