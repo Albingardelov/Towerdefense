@@ -909,6 +909,10 @@ func _on_ic_backdrop_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
 		_hide_info_card()
 
+
+func _on_draft_ready(_offer: Array[int]) -> void:
+	pass  # Implementeras i Task 5
+
 # ============================================================
 # Button handlers
 # ============================================================
