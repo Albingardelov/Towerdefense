@@ -952,7 +952,7 @@ func _draw_tower(pos: Vector2, sz: Vector2i, type: int, alpha: float) -> void:
 			var tints := [Color(1.0, 0.38, 0.68), Color(0.68, 0.38, 1.0), Color(0.38, 0.68, 1.0)]
 			for i in 3:
 				var sy2 := py + seg_h2 * i + seg_h2 * 0.5
-				var tc  := tints[i]; tc.a = alpha
+				var tc: Color = tints[i]; tc.a = alpha
 				draw_circle(Vector2(cx, sy2), sr2, tc)
 				draw_arc(Vector2(cx, sy2), sr2, 0.0, TAU, 20, stroke, 1.5)
 
