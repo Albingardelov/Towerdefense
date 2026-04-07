@@ -33,6 +33,8 @@ var _start_screen:   Control
 var _tower_drawer:   Control
 var _tower_toggle:   Button
 var _ic_backdrop:        ColorRect
+var _draft_overlay: Control
+var _draft_cards:   Array[Button] = []
 var _info_card:          Control
 var _ic_name_lbl:        Label
 var _ic_stats_lbl:       Label
@@ -502,6 +504,49 @@ func _build_ui() -> void:
 		sell_tower_pressed.emit())
 	ic_sell_row.add_child(_ic_sell_btn)
 
+	# ── Draft overlay ─────────────────────────────────────────────
+	_draft_overlay = ColorRect.new()
+	(_draft_overlay as ColorRect).color = Color(0.04, 0.05, 0.08, 0.94)
+	_draft_overlay.set_anchor(SIDE_LEFT,   0.0)
+	_draft_overlay.set_anchor(SIDE_RIGHT,  1.0)
+	_draft_overlay.set_anchor(SIDE_TOP,    0.0)
+	_draft_overlay.set_anchor(SIDE_BOTTOM, 1.0)
+	_draft_overlay.visible = false
+	cl.add_child(_draft_overlay)
+
+	var do_center := CenterContainer.new()
+	do_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_draft_overlay.add_child(do_center)
+
+	var do_vbox := VBoxContainer.new()
+	do_vbox.add_theme_constant_override("separation", 14)
+	do_center.add_child(do_vbox)
+
+	var do_title := Label.new()
+	do_title.text = "CHOOSE YOUR NEXT TOWER"
+	do_title.add_theme_font_size_override("font_size", 18)
+	do_title.add_theme_color_override("font_color", Color(0.0, 0.85, 1.0))
+	do_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	do_vbox.add_child(do_title)
+
+	var do_sub := Label.new()
+	do_sub.text = "— pick 1 —"
+	do_sub.add_theme_font_size_override("font_size", 10)
+	do_sub.add_theme_color_override("font_color", Color(0.40, 0.42, 0.50))
+	do_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	do_vbox.add_child(do_sub)
+
+	var do_cards_hbox := HBoxContainer.new()
+	do_cards_hbox.add_theme_constant_override("separation", 12)
+	do_vbox.add_child(do_cards_hbox)
+
+	for _i in 3:
+		var card := Button.new()
+		card.custom_minimum_size = Vector2(128, 180)
+		card.visible = false
+		do_cards_hbox.add_child(card)
+		_draft_cards.append(card)
+
 	# ── Start screen (added last = renders on top) ────────────
 	_start_screen = ColorRect.new()
 	(_start_screen as ColorRect).color = Color(0.04, 0.05, 0.08, 0.98)
@@ -910,8 +955,71 @@ func _on_ic_backdrop_input(event: InputEvent) -> void:
 		_hide_info_card()
 
 
-func _on_draft_ready(_offer: Array[int]) -> void:
-	pass  # Implementeras i Task 5
+func _on_draft_ready(offer: Array[int]) -> void:
+	for i in _draft_cards.size():
+		var card := _draft_cards[i]
+		if i >= offer.size():
+			card.visible = false
+			continue
+		var t := offer[i]
+		var stroke: Color = TowerDefs.STROKE[t]
+
+		# Rensa gamla signal-kopplingar
+		for conn in card.pressed.get_connections():
+			card.pressed.disconnect(conn["callable"])
+
+		# Stil — mörk bakgrund med färgad vänsterkant
+		var sb := StyleBoxFlat.new()
+		sb.bg_color                       = Color(0.06, 0.08, 0.13)
+		sb.corner_radius_top_left         = 10
+		sb.corner_radius_top_right        = 10
+		sb.corner_radius_bottom_left      = 10
+		sb.corner_radius_bottom_right     = 10
+		sb.border_width_left              = 3
+		sb.border_color                   = stroke
+		card.add_theme_stylebox_override("normal", sb)
+		var sbh := sb.duplicate() as StyleBoxFlat
+		sbh.bg_color           = Color(stroke.r * 0.18, stroke.g * 0.18, stroke.b * 0.18)
+		sbh.border_width_left  = 3
+		sbh.border_width_right = 1
+		sbh.border_width_top   = 1
+		sbh.border_width_bottom = 1
+		card.add_theme_stylebox_override("hover",   sbh)
+		card.add_theme_stylebox_override("pressed", sbh)
+
+		# Text — tema, namn, stats, lore
+		var dps: float = TowerDefs.DAMAGE[t] * TowerDefs.FIRERATE[t]
+		var slow_str := "\n🧊 slow %.0f%%" % (TowerDefs.SLOW[t] * 100.0) \
+			if TowerDefs.SLOW[t] > 0.0 else ""
+		var dot_str  := "\n☠ %.0f/s" % TowerDefs.DOT[t] \
+			if TowerDefs.DOT[t] > 0.0 else ""
+		var aoe_str  := "  ◎" if TowerDefs.AOE[t] else ""
+		card.text = "%s\n%s\n\n⚔ %.0f  📡 %.1ft%s\n◈ %.0f dps%s%s\n\n💰 %dg\n\n%s" % [
+			TowerDefs.THEME[t].to_upper(),
+			TowerDefs.NAMES[t],
+			TowerDefs.DAMAGE[t], TowerDefs.RANGE[t], aoe_str,
+			dps, slow_str, dot_str,
+			TowerDefs.COST[t],
+			TowerDefs.LORE[t],
+		]
+		card.add_theme_font_size_override("font_size", 11)
+		card.add_theme_color_override("font_color",
+			Color(stroke.r, stroke.g, stroke.b, 0.95))
+		card.visible = true
+		card.pressed.connect(func() -> void: _on_draft_pick(t))
+
+	_draft_overlay.visible = true
+
+
+func _on_draft_pick(tower_idx: int) -> void:
+	GameState.unlocked_towers.append(tower_idx)
+	GameState.draft_pending   = false
+	_draft_overlay.visible    = false
+	_rebuild_tower_buttons_from_unlocked()
+
+
+func _rebuild_tower_buttons_from_unlocked() -> void:
+	pass  # Implementeras i Task 6
 
 # ============================================================
 # Button handlers
