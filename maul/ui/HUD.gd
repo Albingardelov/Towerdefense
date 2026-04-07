@@ -68,6 +68,7 @@ func _connect_signals() -> void:
 	GameState.game_over_triggered.connect(_on_game_over)
 	GameState.game_restarted.connect(_on_game_restarted)
 	GameState.tower_inspected.connect(_on_tower_inspected)
+	GameState.draft_ready.connect(_on_draft_ready)
 
 # ============================================================
 # Build

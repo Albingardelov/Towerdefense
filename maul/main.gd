@@ -104,6 +104,10 @@ func _ready() -> void:
 	_hud.drag_side_changed.connect(func(right: bool) -> void: _drag_right = right)
 	add_child(_hud)
 
+	GameState.wave_completed.connect(func(wave_num: int, _bonus: int) -> void:
+		if wave_num % 5 == 0:
+			_trigger_draft())
+
 	# Konfigurera klassisk karta som standard
 	_on_map_selected(0)
 	Pathfinder.rebuild(CELL)
@@ -228,6 +232,8 @@ func _handle_tap(local: Vector2) -> void:
 # ============================================================
 
 func _on_map_selected(idx: int) -> void:
+	if not GameState.game_started and GameState.unlocked_towers.is_empty():
+		_give_starting_towers()
 	GameState.current_map  = idx
 	Pathfinder.map_mode    = idx
 	if idx == 1:  # Mandala — fyra hörn mot mitten
@@ -483,6 +489,30 @@ func _tick_enemies(delta: float) -> void:
 			if abs(diff.x) > 1.0:
 				e.face_right = diff.x > 0.0
 			e.pos += diff.normalized() * move
+
+
+# ============================================================
+# Draft
+# ============================================================
+
+func _trigger_draft() -> void:
+	var pool: Array[int] = []
+	for i in TowerDefs.count():
+		if not GameState.unlocked_towers.has(i):
+			pool.append(i)
+	pool.shuffle()
+	var offer: Array[int] = pool.slice(0, mini(3, pool.size()))
+	GameState.draft_pending = true
+	GameState.draft_ready.emit(offer)
+
+
+func _give_starting_towers() -> void:
+	var all: Array[int] = []
+	for i in TowerDefs.count():
+		all.append(i)
+	all.shuffle()
+	for i in mini(2, all.size()):
+		GameState.unlocked_towers.append(all[i])
 
 
 # ============================================================
