@@ -897,122 +897,172 @@ func _draw_tower(pos: Vector2, sz: Vector2i, type: int, alpha: float) -> void:
 	var r := CELL * 0.40
 
 	match type:
-		# ── Tor ────────────────────────────────────────────────────
-		0:  # Cornerstone — oktagon + inre diamant
-			_tdraw(_tpoly(cx, cy, r, 8, PI / 8.0), fill, stroke)
-			_tdraw(_tpoly(cx, cy, r * 0.38, 4, 0.0), stroke, stroke, 1.0)
-
-		1:  # Lightning Rod — spetsig diamant med mittstick
-			_tdraw(_tpoly(cx, cy, r, 4, 0.0), fill, stroke)
-			draw_line(Vector2(cx, cy - r * 0.55), Vector2(cx, cy + r * 0.55), stroke, 1.5)
-
-		2:  # Storm Guard — oktagon + inre ring
-			_tdraw(_tpoly(cx, cy, r, 8, PI / 8.0), fill, stroke)
-			draw_arc(Vector2(cx, cy), r * 0.52, 0.0, TAU, 32, stroke, 1.5)
-
-		3:  # Mjolnir (2×2) — hammarkors
-			var arm := pw * 0.18
-			_tdraw(PackedVector2Array([
-				Vector2(cx - arm,        py + ph * 0.06),
-				Vector2(cx + arm,        py + ph * 0.06),
-				Vector2(cx + arm,        cy - arm),
-				Vector2(cx + pw * 0.44,  cy - arm),
-				Vector2(cx + pw * 0.44,  cy + arm),
-				Vector2(cx + arm,        cy + arm),
-				Vector2(cx + arm,        py + ph * 0.94),
-				Vector2(cx - arm,        py + ph * 0.94),
-				Vector2(cx - arm,        cy + arm),
-				Vector2(cx - pw * 0.44,  cy + arm),
-				Vector2(cx - pw * 0.44,  cy - arm),
-				Vector2(cx - arm,        cy - arm),
-			]), fill, stroke, 2.0)
-
-		4:  # Tempest — 8-uddastjärna
-			_tdraw(_tstar(cx, cy, r, r * 0.42, 8, -PI / 8.0), fill, stroke)
-
-		# ── Loki ───────────────────────────────────────────────────
-		5:  # Mirage — roterad diamant med inre fyrkant
-			_tdraw(_tpoly(cx, cy, r, 4, PI / 4.0), fill, stroke)
-			_tdraw(_tpoly(cx, cy, r * 0.42, 4, 0.0), stroke, stroke, 1.0)
-
-		6:  # Venom — 6-uddastjärna (giftdroppar)
-			_tdraw(_tstar(cx, cy, r, r * 0.48, 6, -PI / 2.0), fill, stroke)
-
-		7:  # Chaos — ojämn 6-udda form
-			_tdraw(PackedVector2Array([
-				Vector2(cx + cos(-PI*0.50) * r,        cy + sin(-PI*0.50) * r),
-				Vector2(cx + cos(-PI*0.17) * r * 0.52, cy + sin(-PI*0.17) * r * 0.52),
-				Vector2(cx + cos( PI*0.17) * r,        cy + sin( PI*0.17) * r),
-				Vector2(cx + cos( PI*0.42) * r * 0.48, cy + sin( PI*0.42) * r * 0.48),
-				Vector2(cx + cos( PI*0.75) * r,        cy + sin( PI*0.75) * r),
-				Vector2(cx + cos( PI*1.08) * r * 0.55, cy + sin( PI*1.08) * r * 0.55),
-			]), fill, stroke)
-
-		8:  # World Serpent (1×3) — tre staplade diamanter längs pelaren
-			var seg_h := ph / 3.0
-			var sr    := seg_h * 0.36
-			draw_line(Vector2(cx, py + sr), Vector2(cx, py + ph - sr), stroke, 2.0)
-			for i in 3:
-				var sy := py + seg_h * i + seg_h * 0.5
-				_tdraw(_tpoly(cx, sy, sr, 4, 0.0), fill, stroke)
-
-		# ── Oden ───────────────────────────────────────────────────
-		9:  # Sentinel — vakttornsilhuett (rektangel + spets)
-			var tw := pw * 0.48
-			_tdraw(PackedVector2Array([
-				Vector2(cx - tw * 0.5, py + ph * 0.88),
-				Vector2(cx - tw * 0.5, py + ph * 0.32),
-				Vector2(cx,            py + ph * 0.10),
-				Vector2(cx + tw * 0.5, py + ph * 0.32),
-				Vector2(cx + tw * 0.5, py + ph * 0.88),
-			]), fill, stroke)
-
-		10:  # Spyglass — cirkel + hårkors
+		0:  # Destroyer — flying disc
 			draw_circle(Vector2(cx, cy), r, fill)
 			draw_arc(Vector2(cx, cy), r, 0.0, TAU, 48, stroke, 1.5)
 			draw_line(Vector2(cx - r, cy), Vector2(cx + r, cy), stroke, 1.0)
-			draw_line(Vector2(cx, cy - r), Vector2(cx, cy + r), stroke, 1.0)
-			draw_circle(Vector2(cx, cy), r * 0.16, stroke)
 
-		11:  # All-Seeing — öga (ellips + pupill)
-			var eye := PackedVector2Array()
-			for i in 24:
-				var a := TAU * i / 24.0
-				eye.append(Vector2(cx + cos(a) * r, cy + sin(a) * (r * 0.48)))
-			_tdraw(eye, fill, stroke)
-			draw_circle(Vector2(cx, cy), r * 0.26, stroke)
-			draw_circle(Vector2(cx, cy), r * 0.11, fill)
+		1:  # Buzzz — disc med inre ring
+			draw_circle(Vector2(cx, cy), r, fill)
+			draw_arc(Vector2(cx, cy), r, 0.0, TAU, 48, stroke, 1.5)
+			draw_arc(Vector2(cx, cy), r * 0.52, 0.0, TAU, 32, stroke, 1.0)
 
-		12:  # Yggdrasil (2×2) — stor cirkel + 4 satellitpunkter
-			draw_circle(Vector2(cx, cy), r * 1.5, fill)
-			draw_arc(Vector2(cx, cy), r * 1.5, 0.0, TAU, 64, stroke, 2.0)
-			for i in 4:
-				var a := PI / 4.0 + TAU * i / 4.0
-				var sp := Vector2(cx + cos(a) * r * 1.82, cy + sin(a) * r * 1.82)
-				draw_circle(sp, r * 0.28, stroke)
+		2:  # Aviar — putter, kompakt kvadrat
+			var ar := r * 0.75
+			_tdraw(PackedVector2Array([
+				Vector2(cx - ar, cy - ar), Vector2(cx + ar, cy - ar),
+				Vector2(cx + ar, cy + ar), Vector2(cx - ar, cy + ar),
+			]), fill, stroke, 2.0)
+			draw_circle(Vector2(cx, cy), ar * 0.28, stroke)
 
-		# ── Freja ──────────────────────────────────────────────────
-		13:  # Thornbriar — taggig hexagon (törnen)
-			_tdraw(_tstar(cx, cy, r, r * 0.68, 6, -PI / 2.0), fill, stroke)
+		3:  # Hatchet — yxform
+			_tdraw(PackedVector2Array([
+				Vector2(cx,          cy - r),
+				Vector2(cx + r*0.7,  cy - r*0.2),
+				Vector2(cx + r*0.5,  cy + r*0.6),
+				Vector2(cx - r*0.5,  cy + r*0.6),
+				Vector2(cx - r*0.7,  cy - r*0.2),
+			]), fill, stroke)
 
-		14:  # Frost Wind — dubbel hexagon (snöflinga)
+		4:  # Pure — smal aerodynamisk diamant
+			_tdraw(PackedVector2Array([
+				Vector2(cx,          cy - r),
+				Vector2(cx + r*0.35, cy),
+				Vector2(cx,          cy + r),
+				Vector2(cx - r*0.35, cy),
+			]), fill, stroke)
+
+		5:  # Gjutjärnspannan — cirkel + handtag
+			draw_circle(Vector2(cx - r*0.1, cy), r * 0.78, fill)
+			draw_arc(Vector2(cx - r*0.1, cy), r * 0.78, 0.0, TAU, 48, stroke, 1.5)
+			_tdraw(PackedVector2Array([
+				Vector2(cx + r*0.65, cy - r*0.15),
+				Vector2(cx + r*1.10, cy - r*0.15),
+				Vector2(cx + r*1.10, cy + r*0.15),
+				Vector2(cx + r*0.65, cy + r*0.15),
+			]), fill, stroke, 1.5)
+
+		6:  # Sous Vide — avlång rektangel (vakuumpåse)
+			_tdraw(PackedVector2Array([
+				Vector2(cx - r*0.55, cy - r*0.90),
+				Vector2(cx + r*0.55, cy - r*0.90),
+				Vector2(cx + r*0.55, cy + r*0.90),
+				Vector2(cx - r*0.55, cy + r*0.90),
+			]), fill, stroke)
+			draw_line(Vector2(cx - r*0.35, cy - r*0.55),
+					  Vector2(cx + r*0.35, cy - r*0.55), stroke, 1.0)
+
+		7:  # Woken — wok-form (halvcirkel)
+			var wp := PackedVector2Array()
+			for wi in 14:
+				var wa := PI + PI * wi / 13.0
+				wp.append(Vector2(cx + cos(wa) * r, cy + sin(wa) * r * 0.7))
+			wp.append(Vector2(cx + r, cy))
+			wp.append(Vector2(cx - r, cy))
+			_tdraw(wp, fill, stroke)
+
+		8:  # Morteln — U-form
+			var mp := PackedVector2Array()
+			for mi in 10:
+				var ma := PI + PI * mi / 9.0
+				mp.append(Vector2(cx + cos(ma) * r * 0.85, cy + sin(ma) * r * 0.75))
+			mp.append(Vector2(cx + r * 0.85, cy - r * 0.1))
+			mp.append(Vector2(cx - r * 0.85, cy - r * 0.1))
+			_tdraw(mp, fill, stroke)
+			draw_line(Vector2(cx - r, cy - r * 0.1),
+					  Vector2(cx + r, cy - r * 0.1), stroke, 1.5)
+
+		9:  # Göteborgs Rapé — rund snusdosa
+			draw_circle(Vector2(cx, cy), r, fill)
+			draw_arc(Vector2(cx, cy), r, 0.0, TAU, 48, stroke, 1.5)
+			draw_arc(Vector2(cx, cy), r * 0.65, 0.0, TAU, 32, stroke, 0.8)
+			draw_circle(Vector2(cx, cy), r * 0.12, stroke)
+
+		10: # General White — oktagon
+			_tdraw(_tpoly(cx, cy, r, 8, PI / 8.0), fill, stroke)
+			draw_circle(Vector2(cx, cy), r * 0.22, stroke)
+
+		11: # Oden's Extreme — pentagonstjärna
+			_tdraw(_tstar(cx, cy, r, r * 0.42, 5, -PI / 2.0), fill, stroke, 2.0)
+
+		12: # Siberia — tjock diamant
+			_tdraw(_tpoly(cx, cy, r, 4, 0.0), fill, stroke, 2.5)
+			_tdraw(_tpoly(cx, cy, r * 0.50, 4, 0.0), stroke, stroke, 1.5)
+
+		13: # Ristretto — espressokopp
+			_tdraw(PackedVector2Array([
+				Vector2(cx - r*0.50, cy - r*0.55),
+				Vector2(cx + r*0.50, cy - r*0.55),
+				Vector2(cx + r*0.50, cy + r*0.30),
+				Vector2(cx - r*0.50, cy + r*0.30),
+			]), fill, stroke, 2.0)
+			draw_line(Vector2(cx - r*0.70, cy + r*0.30),
+					  Vector2(cx + r*0.70, cy + r*0.30), stroke, 1.5)
+
+		14: # Cold Brew — långt glas
+			_tdraw(PackedVector2Array([
+				Vector2(cx - r*0.40, cy - r*0.95),
+				Vector2(cx + r*0.40, cy - r*0.95),
+				Vector2(cx + r*0.40, cy + r*0.95),
+				Vector2(cx - r*0.40, cy + r*0.95),
+			]), fill, stroke)
+			draw_line(Vector2(cx - r*0.40, cy + r*0.20),
+					  Vector2(cx + r*0.40, cy + r*0.20), stroke, 0.8)
+
+		15: # Chemex — timglasform
+			_tdraw(PackedVector2Array([
+				Vector2(cx - r*0.70, cy - r*0.95),
+				Vector2(cx + r*0.70, cy - r*0.95),
+				Vector2(cx + r*0.20, cy - r*0.05),
+				Vector2(cx + r*0.55, cy + r*0.95),
+				Vector2(cx - r*0.55, cy + r*0.95),
+				Vector2(cx - r*0.20, cy - r*0.05),
+			]), fill, stroke)
+
+		16: # Ernie Ball — strängspole (hexagon)
 			_tdraw(_tpoly(cx, cy, r, 6, 0.0), fill, stroke)
-			_tdraw(_tpoly(cx, cy, r * 0.52, 6, PI / 6.0), stroke, stroke, 1.0)
+			for ei in 3:
+				var ea := TAU * ei / 3.0
+				draw_line(Vector2(cx, cy),
+					Vector2(cx + cos(ea) * r * 0.80, cy + sin(ea) * r * 0.80),
+					stroke, 1.0)
 
-		15:  # Nature's Wrath — blomma (6-bladig stjärna + mittcirkel)
-			_tdraw(_tstar(cx, cy, r, r * 0.52, 6, -PI / 2.0), fill, stroke)
-			draw_circle(Vector2(cx, cy), r * 0.24, stroke)
+		17: # Tube Screamer — pedalform
+			_tdraw(PackedVector2Array([
+				Vector2(cx - r*0.65, cy - r*0.80),
+				Vector2(cx + r*0.65, cy - r*0.80),
+				Vector2(cx + r*0.80, cy - r*0.30),
+				Vector2(cx + r*0.80, cy + r*0.80),
+				Vector2(cx - r*0.80, cy + r*0.80),
+				Vector2(cx - r*0.80, cy - r*0.30),
+			]), fill, stroke)
+			draw_circle(Vector2(cx, cy - r*0.20), r * 0.25, stroke)
 
-		16:  # Bifrost (1×3) — tre cirklar längs pelare i regnbågsfärger
-			var seg_h2 := ph / 3.0
-			var sr2    := seg_h2 * 0.34
-			draw_line(Vector2(cx, py + sr2), Vector2(cx, py + ph - sr2), stroke, 2.5)
-			var tints := [Color(1.0, 0.38, 0.68), Color(0.68, 0.38, 1.0), Color(0.38, 0.68, 1.0)]
-			for i in 3:
-				var sy2 := py + seg_h2 * i + seg_h2 * 0.5
-				var tc  := tints[i]; tc.a = alpha
-				draw_circle(Vector2(cx, sy2), sr2, tc)
-				draw_arc(Vector2(cx, sy2), sr2, 0.0, TAU, 20, stroke, 1.5)
+		18: # Roundhouse — kickcirkel
+			var rp := PackedVector2Array()
+			for ri in 20:
+				var ra := -PI * 0.1 + TAU * 0.65 * ri / 19.0
+				rp.append(Vector2(cx + cos(ra) * r, cy + sin(ra) * r))
+			rp.append(Vector2(cx, cy))
+			_tdraw(rp, fill, stroke)
+
+		19: # Elbow — skarp triangel
+			_tdraw(PackedVector2Array([
+				Vector2(cx,      cy - r),
+				Vector2(cx + r,  cy + r * 0.70),
+				Vector2(cx,      cy + r * 0.20),
+				Vector2(cx - r,  cy + r * 0.70),
+			]), fill, stroke, 2.0)
+
+		20: # Hot Stone — oregelbunden sten
+			_tdraw(PackedVector2Array([
+				Vector2(cx - r*0.30, cy - r*0.90),
+				Vector2(cx + r*0.55, cy - r*0.65),
+				Vector2(cx + r*0.90, cy + r*0.20),
+				Vector2(cx + r*0.20, cy + r*0.90),
+				Vector2(cx - r*0.80, cy + r*0.50),
+				Vector2(cx - r*0.85, cy - r*0.30),
+			]), fill, stroke)
 
 		_:  # fallback
 			draw_rect(Rect2(px + 1, py + 1, pw - 2, ph - 2), fill)
