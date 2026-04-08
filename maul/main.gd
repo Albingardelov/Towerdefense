@@ -215,9 +215,8 @@ func _handle_tap(local: Vector2) -> void:
 	var gy := local.y / CELL
 	var hit := _get_tower_at(gx, gy)
 
-	if not hit.is_empty():
+	if not hit.is_empty() and not GameState.placing:
 		GameState.set_inspected(hit)
-		_exit_placement()
 	elif GameState.placing and GameState.hover_valid \
 			and GameState.gold >= TowerDefs.COST[GameState.selected]:
 		var sz: Vector2i = TowerDefs.SIZES[GameState.selected]
