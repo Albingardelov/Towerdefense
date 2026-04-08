@@ -39,6 +39,7 @@ var _relic_draft_overlay: Control
 var _relic_draft_cards: Array[Button] = []
 var _relic_strip_hbox: HBoxContainer
 var _toast_lbl: Label
+var _wave_preview_lbl: Label
 var _info_card:          Control
 var _ic_name_lbl:        Label
 var _ic_stats_lbl:       Label
@@ -400,6 +401,19 @@ func _build_ui() -> void:
 	_toast_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_toast_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cl.add_child(_toast_lbl)
+
+	_wave_preview_lbl = Label.new()
+	_wave_preview_lbl.set_anchor(SIDE_LEFT,   0.0)
+	_wave_preview_lbl.set_anchor(SIDE_RIGHT,  1.0)
+	_wave_preview_lbl.set_anchor(SIDE_TOP,    1.0)
+	_wave_preview_lbl.set_anchor(SIDE_BOTTOM, 1.0)
+	_wave_preview_lbl.set_offset(SIDE_TOP,    -112)
+	_wave_preview_lbl.set_offset(SIDE_BOTTOM, -56)
+	_wave_preview_lbl.add_theme_font_size_override("font_size", 11)
+	_wave_preview_lbl.add_theme_color_override("font_color", Color(0.55, 0.60, 0.75))
+	_wave_preview_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_wave_preview_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cl.add_child(_wave_preview_lbl)
 
 	# ── Tower info card (bottom-sheet, icke-blockerande) ─────────
 	_ic_backdrop = ColorRect.new()
@@ -819,6 +833,7 @@ func _on_wave_started(wave_num: int, _banner: String) -> void:
 	_wave_lbl.text              = "%d /\n40" % wave_num
 	_countdown_lbl.text         = ""
 	_send_btn_wrap.visible      = false
+	_wave_preview_lbl.text      = ""
 
 
 func _on_wave_completed(_wave_num: int, _bonus: int) -> void:
@@ -1145,6 +1160,25 @@ func update_countdown(seconds: float, next_wave: int) -> void:
 	if GameState.wave_in_progress or GameState.game_over:
 		return
 	_countdown_lbl.text = "Wave %d  %ds" % [next_wave, int(ceil(seconds))]
+
+
+func update_wave_preview(next_wave: int) -> void:
+	if next_wave > WaveDefs.count():
+		_wave_preview_lbl.text = ""
+		return
+	var wd := WaveDefs.get_wave(next_wave)
+	var tags: Array[String] = []
+	if wd.flies:
+		tags.append("AIR")
+	match wd.special:
+		WaveDefs.SPECIAL_BOSS:         tags.append("BOSS")
+		WaveDefs.SPECIAL_FINAL_BOSS:   tags.append("FINAL BOSS")
+		WaveDefs.SPECIAL_MASS:         tags.append("SWARM")
+		WaveDefs.SPECIAL_MAGIC_IMMUNE: tags.append("MAGIC IMMUNE")
+		WaveDefs.SPECIAL_INVISIBLE:    tags.append("INVISIBLE")
+	var tag_str: String = "  •  ".join(tags) if not tags.is_empty() else ""
+	var suffix := ("  —  " + tag_str) if tag_str else ""
+	_wave_preview_lbl.text = "NEXT: %s  ×%d%s" % [wd.name, wd.count, suffix]
 
 
 func _section_header(text: String) -> HBoxContainer:

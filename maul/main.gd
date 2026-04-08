@@ -382,6 +382,7 @@ func _process(delta: float) -> void:
 	if not GameState.wave_in_progress:
 		GameState.wave_countdown = maxf(0.0, GameState.wave_countdown - delta)
 		_hud.update_countdown(GameState.wave_countdown, GameState.wave + 1)
+		_hud.update_wave_preview(GameState.wave + 1)
 		if GameState.wave_countdown <= 0.0 and not GameState.current_path.is_empty():
 			WaveManager.start()
 		queue_redraw()
