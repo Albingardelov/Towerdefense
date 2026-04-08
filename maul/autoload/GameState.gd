@@ -80,6 +80,10 @@ var inspected:   Dictionary = {}
 # Mutators
 # ============================================================
 
+func _ready() -> void:
+	load_meta()
+
+
 func add_gold(amount: int) -> void:
 	gold += amount
 	gold_changed.emit(gold)
@@ -177,3 +181,30 @@ func reset() -> void:
 	gold_changed.emit(gold)
 	escaped_changed.emit(escaped, max_escape)
 	game_restarted.emit()
+
+
+const SAVE_PATH := "user://maze_td_save.json"
+
+
+func save_meta() -> void:
+	var data := {
+		"best_wave":   best_wave,
+		"runs_played": runs_played,
+	}
+	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(data))
+		file.close()
+
+
+func load_meta() -> void:
+	if not FileAccess.file_exists(SAVE_PATH):
+		return
+	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
+	if not file:
+		return
+	var parsed := JSON.parse_string(file.get_as_text())
+	file.close()
+	if parsed is Dictionary:
+		best_wave   = int(parsed.get("best_wave",   0))
+		runs_played = int(parsed.get("runs_played", 0))

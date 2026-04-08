@@ -61,6 +61,7 @@ var _summary_towers_lbl:  Label
 var _summary_syn_lbl:     Label
 var _summary_relic_lbl:   Label
 var _summary_best_lbl:    Label
+var _sc_best_lbl: Label
 
 # ============================================================
 # Lifecycle
@@ -847,9 +848,24 @@ func _build_ui() -> void:
 	sc_footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	svbox.add_child(sc_footer)
 
+	_sc_best_lbl = Label.new()
+	_sc_best_lbl.add_theme_font_size_override("font_size", 11)
+	_sc_best_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	_sc_best_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	svbox.add_child(_sc_best_lbl)
+	_update_best_label()
+
 # ============================================================
 # Private helpers
 # ============================================================
+
+func _update_best_label() -> void:
+	if GameState.best_wave == 0:
+		_sc_best_lbl.text = ""
+	else:
+		_sc_best_lbl.text = "🏆 Best: Wave %d  •  Runs: %d" % [
+			GameState.best_wave, GameState.runs_played]
+
 
 func _format_tower_stats(type: int) -> String:
 	var dps: float = TowerDefs.DAMAGE[type] * TowerDefs.FIRERATE[type]
@@ -991,6 +1007,7 @@ func _on_game_restarted() -> void:
 	for i in _diff_btns.size():
 		_diff_btns[i].button_pressed = (i == 1)
 	_summary_overlay.visible = false
+	_update_best_label()
 	_start_screen.visible = true
 	_rebuild_relic_strip()
 

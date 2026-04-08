@@ -428,6 +428,7 @@ func _check_wave_end() -> void:
 		GameState.runs_played += 1
 		if GameState.wave > GameState.best_wave:
 			GameState.best_wave = GameState.wave
+		GameState.save_meta()
 		_hud.show_run_summary()
 		GameState.game_over_triggered.emit()
 		return
