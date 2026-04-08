@@ -38,6 +38,7 @@ var _draft_cards:   Array[Button] = []
 var _relic_draft_overlay: Control
 var _relic_draft_cards: Array[Button] = []
 var _relic_strip_hbox: HBoxContainer
+var _toast_lbl: Label
 var _info_card:          Control
 var _ic_name_lbl:        Label
 var _ic_stats_lbl:       Label
@@ -74,6 +75,7 @@ func _connect_signals() -> void:
 	GameState.draft_ready.connect(_on_draft_ready)
 	GameState.relic_draft_ready.connect(_on_relic_draft_ready)
 	GameState.relic_acquired.connect(_on_relic_acquired)
+	GameState.synergy_activated.connect(_on_synergy_activated)
 
 # ============================================================
 # Build
@@ -208,6 +210,12 @@ func _build_ui() -> void:
 	var spacer2 := Control.new()
 	spacer2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	outer_hbox.add_child(spacer2)
+
+	# Relic strip (visar aktiva relics som ikoner)
+	_relic_strip_hbox = HBoxContainer.new()
+	_relic_strip_hbox.add_theme_constant_override("separation", 4)
+	_relic_strip_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	outer_hbox.add_child(_relic_strip_hbox)
 
 	# Höger — wave-info + knappar
 	var right_margin := MarginContainer.new()
@@ -383,6 +391,15 @@ func _build_ui() -> void:
 	_status_lbl.add_theme_font_size_override("font_size", 11)
 	_status_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
 	cl.add_child(_status_lbl)
+	_toast_lbl = Label.new()
+	_toast_lbl.position = Vector2(0, 72)
+	_toast_lbl.set_anchor(SIDE_LEFT,  0.0)
+	_toast_lbl.set_anchor(SIDE_RIGHT, 1.0)
+	_toast_lbl.add_theme_font_size_override("font_size", 13)
+	_toast_lbl.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2, 0.0))
+	_toast_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_toast_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cl.add_child(_toast_lbl)
 
 	# ── Tower info card (bottom-sheet, icke-blockerande) ─────────
 	_ic_backdrop = ColorRect.new()
@@ -845,6 +862,7 @@ func _on_game_restarted() -> void:
 	for i in _diff_btns.size():
 		_diff_btns[i].button_pressed = (i == 1)
 	_start_screen.visible = true
+	_rebuild_relic_strip()
 
 
 func _on_tower_inspected(tower: Dictionary) -> void:
@@ -1201,5 +1219,24 @@ func _on_relic_acquired(_relic: Dictionary) -> void:
 	_rebuild_relic_strip()
 
 
+func _on_synergy_activated(_syn_id: String, syn_name: String, syn_icon: String) -> void:
+	_toast_lbl.text = "%s  SYNERGI: %s" % [syn_icon, syn_name]
+	_toast_lbl.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2, 1.0))
+	var tw := get_tree().create_tween()
+	tw.tween_interval(2.0)
+	tw.tween_method(
+		func(a: float) -> void:
+			_toast_lbl.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2, a)),
+		1.0, 0.0, 0.6
+	)
+
+
 func _rebuild_relic_strip() -> void:
-	pass  # implemented in Task 6
+	for child in _relic_strip_hbox.get_children():
+		child.queue_free()
+	for relic: Dictionary in GameState.active_relics:
+		var lbl := Label.new()
+		lbl.text = relic.icon
+		lbl.add_theme_font_size_override("font_size", 18)
+		lbl.tooltip_text = relic.name + "\n" + relic.desc
+		_relic_strip_hbox.add_child(lbl)
