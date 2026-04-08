@@ -221,6 +221,7 @@ func _handle_tap(local: Vector2) -> void:
 			cooldown = 0.0,
 		})
 		GameState.spend_gold(TowerDefs.COST[GameState.selected])
+		GameState._refresh_synergies()
 		GameState.set_inspected({})
 		Pathfinder.rebuild(CELL)
 		_exit_placement()
@@ -280,6 +281,7 @@ func _on_sell_tower() -> void:
 	GameState.add_gold(refund)
 	GameState.towers = GameState.towers.filter(func(x: Dictionary) -> bool:
 		return not is_same(x, t))
+	GameState._refresh_synergies()
 	Pathfinder.rebuild(CELL)
 	queue_redraw()
 
@@ -293,6 +295,7 @@ func _on_clear_all() -> void:
 	if refund > 0:
 		GameState.add_gold(refund)
 	GameState.towers.clear()
+	GameState._refresh_synergies()
 	GameState.set_inspected({})
 	Pathfinder.rebuild(CELL)
 	queue_redraw()
@@ -446,7 +449,9 @@ func _tick_enemies(delta: float) -> void:
 		if e.get("dot_t", 0.0) > 0.0:
 			e["dot_t"] -= delta
 			var creep_gold_dot: int = WaveDefs.get_wave(GameState.wave).bounty
-			_apply_damage(e, e["dot_dps"] * delta, creep_gold_dot)
+			var dot_mult := 1.5 if (GameState.active_synergies.has("slow_roast") \
+				and e.get("slow_factor", 0.0) > 0.0) else 1.0
+			_apply_damage(e, e["dot_dps"] * delta * dot_mult, creep_gold_dot)
 			if e.dead:
 				continue
 
@@ -527,6 +532,14 @@ func _tick_towers(delta: float) -> void:
 
 		var tc       := Vector2((t.pos.x + t.sz.x * 0.5) * CELL, (t.pos.y + t.sz.y * 0.5) * CELL)
 		var range_px: float = TowerDefs.RANGE[t.type] * CELL
+		if GameState.active_synergies.has("disc_mastery") \
+				and TowerDefs.TAGS[t.type].has("disc"):
+			range_px *= 1.20
+		# Relic: Muay Thai +range
+		for relic: Dictionary in GameState.active_relics:
+			if relic.effect == "muay_range" \
+					and TowerDefs.TAGS[t.type].has("muay_thai"):
+				range_px += relic.value * float(CELL)
 
 		var ground_target: Dictionary = {}
 		var fly_target:    Dictionary = {}
@@ -549,6 +562,10 @@ func _tick_towers(delta: float) -> void:
 		var nearest: Dictionary = ground_target if not ground_target.is_empty() else fly_target
 		if not nearest.is_empty():
 			var dmg: float = TowerDefs.DAMAGE[t.type]
+			for relic: Dictionary in GameState.active_relics:
+				if relic.effect == "disc_damage" \
+						and TowerDefs.TAGS[t.type].has("disc"):
+					dmg *= relic.value
 			if nearest.get("flying", false):
 				dmg *= TowerDefs.AIR_MULT[t.type]
 			GameState.projectiles.append({
@@ -563,7 +580,12 @@ func _tick_towers(delta: float) -> void:
 				anim_time  = 0.0,
 				tower_type = t.type,
 			})
-			t.cooldown = 1.0 / TowerDefs.FIRERATE[t.type]
+			var firerate: float = TowerDefs.FIRERATE[t.type]
+			for relic: Dictionary in GameState.active_relics:
+				if relic.effect == "guitar_firerate" \
+						and TowerDefs.TAGS[t.type].has("gitarr"):
+					firerate *= relic.value
+			t.cooldown = 1.0 / firerate
 			_sfx_shoot.play()
 
 
@@ -602,7 +624,11 @@ func _apply_damage(e: Dictionary, damage: float, creep_gold: int,
 	# Applicera slow
 	if tower_type >= 0 and TowerDefs.SLOW[tower_type] > 0.0:
 		e["slow_factor"] = TowerDefs.SLOW[tower_type]
-		e["slow_t"]      = TowerDefs.SLOW_DUR[tower_type]
+		var slow_dur: float = TowerDefs.SLOW_DUR[tower_type]
+		for relic: Dictionary in GameState.active_relics:
+			if relic.effect == "slow_duration":
+				slow_dur += relic.value
+		e["slow_t"] = slow_dur
 	# Applicera DoT (ersätter befintlig om starkare)
 	if tower_type >= 0 and TowerDefs.DOT[tower_type] > 0.0:
 		if TowerDefs.DOT[tower_type] >= e.get("dot_dps", 0.0):
@@ -612,6 +638,9 @@ func _apply_damage(e: Dictionary, damage: float, creep_gold: int,
 		e.hp   = 0.0
 		e.dead = true
 		var kg: int = creep_gold
+		if tower_type >= 0 and GameState.active_synergies.has("caffeine_economy") \
+				and TowerDefs.TAGS[tower_type].has("kaffe"):
+			kg += 1
 		GameState.add_gold(kg)
 		if not e.get("flying", false):
 			GameState.corpses.append({
@@ -720,14 +749,18 @@ func _draw() -> void:
 			(GameState.hover_pos.y + TowerDefs.SIZES[GameState.selected].y * 0.5) * CELL)
 		draw_arc(hc, TowerDefs.RANGE[GameState.selected] * CELL,
 			0.0, TAU, 64, Color(1.0, 1.0, 0.0, 0.20), 1.0)
+		var fp_rect := Rect2(
+			GameState.hover_pos.x * CELL + 1, GameState.hover_pos.y * CELL + 1,
+			TowerDefs.SIZES[GameState.selected].x * CELL - 2,
+			TowerDefs.SIZES[GameState.selected].y * CELL - 2)
+		if GameState.hover_valid:
+			draw_rect(fp_rect, Color(0.3, 1.0, 0.3, 0.12))
+			draw_rect(fp_rect, Color(0.3, 1.0, 0.3, 0.55), false, 1.5)
+		else:
+			draw_rect(fp_rect, Color(1.0, 0.3, 0.3, 0.12))
+			draw_rect(fp_rect, COL_INVALID, false, 1.5)
 		_draw_tower(GameState.hover_pos, TowerDefs.SIZES[GameState.selected],
 			GameState.selected, 0.5 if GameState.hover_valid else 0.2)
-		if not GameState.hover_valid:
-			draw_rect(
-				Rect2(GameState.hover_pos.x * CELL + 1, GameState.hover_pos.y * CELL + 1,
-					TowerDefs.SIZES[GameState.selected].x * CELL - 2,
-					TowerDefs.SIZES[GameState.selected].y * CELL - 2),
-				COL_INVALID, false, 1.5)
 
 
 func _draw_bg() -> void:
