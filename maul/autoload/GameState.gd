@@ -203,7 +203,7 @@ func load_meta() -> void:
 	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
 	if not file:
 		return
-	var parsed := JSON.parse_string(file.get_as_text())
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
 	file.close()
 	if parsed is Dictionary:
 		best_wave   = int(parsed.get("best_wave",   0))
