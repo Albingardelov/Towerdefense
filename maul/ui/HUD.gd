@@ -55,6 +55,12 @@ var _health_bar:      ProgressBar
 var _settings_panel:  Control
 var _diff_btns:          Array[Button] = []
 var _pending_difficulty: int = 1
+var _summary_overlay: Control
+var _summary_wave_lbl:    Label
+var _summary_towers_lbl:  Label
+var _summary_syn_lbl:     Label
+var _summary_relic_lbl:   Label
+var _summary_best_lbl:    Label
 
 # ============================================================
 # Lifecycle
@@ -624,6 +630,82 @@ func _build_ui() -> void:
 		rd_cards_hbox.add_child(card)
 		_relic_draft_cards.append(card)
 
+	# ── Run Summary overlay ─────────────────────────────────────
+	_summary_overlay = ColorRect.new()
+	(_summary_overlay as ColorRect).color = Color(0.04, 0.05, 0.08, 0.96)
+	_summary_overlay.set_anchor(SIDE_LEFT,   0.0)
+	_summary_overlay.set_anchor(SIDE_RIGHT,  1.0)
+	_summary_overlay.set_anchor(SIDE_TOP,    0.0)
+	_summary_overlay.set_anchor(SIDE_BOTTOM, 1.0)
+	_summary_overlay.visible = false
+	cl.add_child(_summary_overlay)
+
+	var sum_center := CenterContainer.new()
+	sum_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_summary_overlay.add_child(sum_center)
+
+	var sum_vbox := VBoxContainer.new()
+	sum_vbox.add_theme_constant_override("separation", 10)
+	sum_center.add_child(sum_vbox)
+
+	var sum_title := Label.new()
+	sum_title.text = "RUN OVER"
+	sum_title.add_theme_font_size_override("font_size", 32)
+	sum_title.add_theme_color_override("font_color", Color(0.95, 0.25, 0.35))
+	sum_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sum_vbox.add_child(sum_title)
+
+	var sum_panel := PanelContainer.new()
+	var sum_style := StyleBoxFlat.new()
+	sum_style.bg_color                       = Color(0.08, 0.10, 0.15)
+	sum_style.corner_radius_top_left         = 12
+	sum_style.corner_radius_top_right        = 12
+	sum_style.corner_radius_bottom_left      = 12
+	sum_style.corner_radius_bottom_right     = 12
+	sum_panel.add_theme_stylebox_override("panel", sum_style)
+	sum_panel.custom_minimum_size = Vector2(260, 0)
+	sum_vbox.add_child(sum_panel)
+
+	var sum_m := MarginContainer.new()
+	sum_m.add_theme_constant_override("margin_left",   20)
+	sum_m.add_theme_constant_override("margin_right",  20)
+	sum_m.add_theme_constant_override("margin_top",    16)
+	sum_m.add_theme_constant_override("margin_bottom", 16)
+	sum_panel.add_child(sum_m)
+
+	var sum_inner := VBoxContainer.new()
+	sum_inner.add_theme_constant_override("separation", 8)
+	sum_m.add_child(sum_inner)
+
+	_summary_wave_lbl   = Label.new()
+	_summary_towers_lbl = Label.new()
+	_summary_syn_lbl    = Label.new()
+	_summary_relic_lbl  = Label.new()
+	_summary_best_lbl   = Label.new()
+
+	for lbl: Label in [_summary_wave_lbl, _summary_towers_lbl,
+			_summary_syn_lbl, _summary_relic_lbl, _summary_best_lbl]:
+		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_color_override("font_color", Color(0.80, 0.82, 0.90))
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		sum_inner.add_child(lbl)
+
+	_summary_best_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+
+	var sum_close := Button.new()
+	sum_close.text = "BACK TO MENU"
+	sum_close.add_theme_font_size_override("font_size", 16)
+	sum_close.custom_minimum_size = Vector2(0, 48)
+	var scn := StyleBoxFlat.new()
+	scn.bg_color = Color(0.15, 0.18, 0.25)
+	scn.corner_radius_top_left    = 8; scn.corner_radius_top_right    = 8
+	scn.corner_radius_bottom_left = 8; scn.corner_radius_bottom_right = 8
+	sum_close.add_theme_stylebox_override("normal", scn)
+	sum_close.pressed.connect(func() -> void:
+		_summary_overlay.visible = false
+		_start_screen.visible    = true)
+	sum_vbox.add_child(sum_close)
+
 	# ── Start screen (added last = renders on top) ────────────
 	_start_screen = ColorRect.new()
 	(_start_screen as ColorRect).color = Color(0.04, 0.05, 0.08, 0.98)
@@ -842,6 +924,38 @@ func _on_wave_completed(_wave_num: int, _bonus: int) -> void:
 	_send_early_btn.disabled    = false
 
 
+func show_run_summary() -> void:
+	_summary_wave_lbl.text = "📊 Wave nådd: %d / 40" % GameState.wave
+
+	var tower_names: Array[String] = []
+	for idx: int in GameState.unlocked_towers:
+		tower_names.append(TowerDefs.NAMES[idx])
+	_summary_towers_lbl.text = "🏗 Torn upplåsta: " + (", ".join(tower_names) if not tower_names.is_empty() else "—")
+
+	if GameState.active_synergies.is_empty():
+		_summary_syn_lbl.text = "🔗 Synergier: —"
+	else:
+		var syn_names: Array[String] = []
+		for sid: String in GameState.active_synergies:
+			for syn: Dictionary in SynergyDefs.SYNERGIES:
+				if syn.id == sid:
+					syn_names.append(syn.icon + " " + syn.name)
+		_summary_syn_lbl.text = "🔗 Synergier: " + ", ".join(syn_names)
+
+	if GameState.active_relics.is_empty():
+		_summary_relic_lbl.text = "✨ Relics: —"
+	else:
+		var relic_names: Array[String] = []
+		for rel: Dictionary in GameState.active_relics:
+			relic_names.append(rel.icon + " " + rel.name)
+		_summary_relic_lbl.text = "✨ Relics: " + ", ".join(relic_names)
+
+	_summary_best_lbl.text = "🏆 Bäst: Wave %d  •  Runs: %d" % [
+		GameState.best_wave, GameState.runs_played]
+
+	_summary_overlay.visible = true
+
+
 func _on_game_over() -> void:
 	Engine.time_scale           = 1.0
 	_speed_btn.text             = "⚡  1x SPEED"
@@ -876,6 +990,7 @@ func _on_game_restarted() -> void:
 	_pending_difficulty = 1
 	for i in _diff_btns.size():
 		_diff_btns[i].button_pressed = (i == 1)
+	_summary_overlay.visible = false
 	_start_screen.visible = true
 	_rebuild_relic_strip()
 

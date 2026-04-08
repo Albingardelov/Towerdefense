@@ -425,6 +425,10 @@ func _check_wave_end() -> void:
 	if not GameState.game_over and GameState.escaped > GameState.max_escape:
 		GameState.game_over        = true
 		GameState.wave_in_progress = false
+		GameState.runs_played += 1
+		if GameState.wave > GameState.best_wave:
+			GameState.best_wave = GameState.wave
+		_hud.show_run_summary()
 		GameState.game_over_triggered.emit()
 		return
 
