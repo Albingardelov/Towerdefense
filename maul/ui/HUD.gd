@@ -35,6 +35,9 @@ var _tower_toggle:   Button
 var _ic_backdrop:        ColorRect
 var _draft_overlay: Control
 var _draft_cards:   Array[Button] = []
+var _relic_draft_overlay: Control
+var _relic_draft_cards: Array[Button] = []
+var _relic_strip_hbox: HBoxContainer
 var _info_card:          Control
 var _ic_name_lbl:        Label
 var _ic_stats_lbl:       Label
@@ -69,6 +72,8 @@ func _connect_signals() -> void:
 	GameState.game_restarted.connect(_on_game_restarted)
 	GameState.tower_inspected.connect(_on_tower_inspected)
 	GameState.draft_ready.connect(_on_draft_ready)
+	GameState.relic_draft_ready.connect(_on_relic_draft_ready)
+	GameState.relic_acquired.connect(_on_relic_acquired)
 
 # ============================================================
 # Build
@@ -545,6 +550,49 @@ func _build_ui() -> void:
 		do_cards_hbox.add_child(card)
 		_draft_cards.append(card)
 
+	# ── Relic draft overlay ───────────────────────────────────────
+	_relic_draft_overlay = ColorRect.new()
+	(_relic_draft_overlay as ColorRect).color = Color(0.04, 0.05, 0.08, 0.95)
+	_relic_draft_overlay.set_anchor(SIDE_LEFT,   0.0)
+	_relic_draft_overlay.set_anchor(SIDE_RIGHT,  1.0)
+	_relic_draft_overlay.set_anchor(SIDE_TOP,    0.0)
+	_relic_draft_overlay.set_anchor(SIDE_BOTTOM, 1.0)
+	_relic_draft_overlay.visible = false
+	cl.add_child(_relic_draft_overlay)
+
+	var rd_center := CenterContainer.new()
+	rd_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_relic_draft_overlay.add_child(rd_center)
+
+	var rd_vbox := VBoxContainer.new()
+	rd_vbox.add_theme_constant_override("separation", 14)
+	rd_center.add_child(rd_vbox)
+
+	var rd_title := Label.new()
+	rd_title.text = "CHOOSE A RELIC"
+	rd_title.add_theme_font_size_override("font_size", 18)
+	rd_title.add_theme_color_override("font_color", Color(1.0, 0.75, 0.1))
+	rd_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rd_vbox.add_child(rd_title)
+
+	var rd_sub := Label.new()
+	rd_sub.text = "— global passive —"
+	rd_sub.add_theme_font_size_override("font_size", 10)
+	rd_sub.add_theme_color_override("font_color", Color(0.40, 0.42, 0.50))
+	rd_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rd_vbox.add_child(rd_sub)
+
+	var rd_cards_hbox := HBoxContainer.new()
+	rd_cards_hbox.add_theme_constant_override("separation", 12)
+	rd_vbox.add_child(rd_cards_hbox)
+
+	for _i in 3:
+		var card := Button.new()
+		card.custom_minimum_size = Vector2(128, 160)
+		card.visible = false
+		rd_cards_hbox.add_child(card)
+		_relic_draft_cards.append(card)
+
 	# ── Start screen (added last = renders on top) ────────────
 	_start_screen = ColorRect.new()
 	(_start_screen as ColorRect).color = Color(0.04, 0.05, 0.08, 0.98)
@@ -1002,6 +1050,7 @@ func _do_start() -> void:
 	GameState.wave_countdown = GameState.WAVE_INTERVAL_FIRST
 	map_selected.emit(_selected_map)
 	difficulty_set.emit(_pending_difficulty)
+	_rebuild_tower_buttons_from_unlocked()
 	_start_screen.visible = false
 
 
@@ -1107,3 +1156,50 @@ func _format_number(n: int) -> String:
 		out = s[i] + out
 		cnt += 1
 	return out
+
+
+func _on_relic_draft_ready(offer: Array[Dictionary]) -> void:
+	for i in _relic_draft_cards.size():
+		var card: Button = _relic_draft_cards[i]
+		if i >= offer.size():
+			card.visible = false
+			continue
+		var rel: Dictionary = offer[i]
+		card.visible = true
+		card.text = "%s\n%s\n\n%s" % [rel.icon, rel.name, rel.desc]
+		card.add_theme_font_size_override("font_size", 13)
+		# Clear all existing connections on pressed signal
+		for conn in card.pressed.get_connections():
+			card.pressed.disconnect(conn["callable"])
+		card.pressed.connect(_on_relic_pick.bind(rel))
+		var rsb := StyleBoxFlat.new()
+		rsb.bg_color                       = Color(0.12, 0.10, 0.06)
+		rsb.corner_radius_top_left         = 10
+		rsb.corner_radius_top_right        = 10
+		rsb.corner_radius_bottom_left      = 10
+		rsb.corner_radius_bottom_right     = 10
+		rsb.border_width_left              = 2
+		rsb.border_width_right             = 2
+		rsb.border_width_top               = 2
+		rsb.border_width_bottom            = 2
+		rsb.border_color                   = Color(1.0, 0.75, 0.1, 0.7)
+		card.add_theme_stylebox_override("normal",  rsb)
+		var rsh := rsb.duplicate() as StyleBoxFlat
+		rsh.border_color = Color(1.0, 0.90, 0.3)
+		card.add_theme_stylebox_override("hover",   rsh)
+		card.add_theme_stylebox_override("pressed", rsh)
+	_relic_draft_overlay.visible = true
+
+
+func _on_relic_pick(relic: Dictionary) -> void:
+	GameState.acquire_relic(relic)
+	GameState.draft_pending = false
+	_relic_draft_overlay.visible = false
+
+
+func _on_relic_acquired(_relic: Dictionary) -> void:
+	_rebuild_relic_strip()
+
+
+func _rebuild_relic_strip() -> void:
+	pass  # implemented in Task 6

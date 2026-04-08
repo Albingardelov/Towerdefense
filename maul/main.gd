@@ -105,8 +105,15 @@ func _ready() -> void:
 	add_child(_hud)
 
 	GameState.wave_completed.connect(func(wave_num: int, _bonus: int) -> void:
-		if wave_num % 5 == 0:
+		if wave_num % 10 == 0:
+			_trigger_relic_draft()
+		elif wave_num % 5 == 0:
 			_trigger_draft())
+
+	GameState.wave_started.connect(func(_wave_num: int, _banner: String) -> void:
+		for relic: Dictionary in GameState.active_relics:
+			if relic.effect == "wave_gold":
+				GameState.add_gold(int(relic.value)))
 
 	# Konfigurera klassisk karta som standard
 	_on_map_selected(0)
@@ -499,6 +506,24 @@ func _tick_enemies(delta: float) -> void:
 # ============================================================
 # Draft
 # ============================================================
+
+func _trigger_relic_draft() -> void:
+	var pool: Array[Dictionary] = []
+	for relic: Dictionary in RelicDefs.RELICS:
+		var already: bool = false
+		for held: Dictionary in GameState.active_relics:
+			if held.id == relic.id:
+				already = true
+				break
+		if not already:
+			pool.append(relic)
+	if pool.is_empty():
+		return
+	pool.shuffle()
+	var offer: Array[Dictionary] = pool.slice(0, mini(3, pool.size()))
+	GameState.draft_pending = true
+	GameState.relic_draft_ready.emit(offer)
+
 
 func _trigger_draft() -> void:
 	var pool: Array[int] = []
