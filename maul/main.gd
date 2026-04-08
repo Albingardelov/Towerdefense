@@ -774,6 +774,13 @@ func _draw() -> void:
 			HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1.0, 0.88, 0.2, fade))
 
 	if GameState.hover_pos.x >= 0:
+		# Visa footprint på alla placerade torn under placement-läge
+		for t in GameState.towers:
+			draw_rect(
+				Rect2(t.pos.x * CELL + 1, t.pos.y * CELL + 1,
+					t.sz.x * CELL - 2, t.sz.y * CELL - 2),
+				Color(1.0, 1.0, 1.0, 0.25), false, 1.0)
+
 		var hc := Vector2(
 			(GameState.hover_pos.x + TowerDefs.SIZES[GameState.selected].x * 0.5) * CELL,
 			(GameState.hover_pos.y + TowerDefs.SIZES[GameState.selected].y * 0.5) * CELL)
