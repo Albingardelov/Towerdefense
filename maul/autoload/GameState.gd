@@ -53,9 +53,18 @@ var gold:         int  = 500
 var game_started: bool = false
 var game_over:    bool = false
 signal draft_ready(offer: Array[int])   # emittas med 3 tornindex
+signal relic_draft_ready(offer: Array[Dictionary])
+signal synergy_activated(syn_id: String, syn_name: String, syn_icon: String)
+signal relic_acquired(relic: Dictionary)
 
 var unlocked_towers: Array[int] = []    # vilka torn spelaren fått via draft
 var draft_pending:   bool       = false # väntar på spelarens val
+
+var active_synergies: Array[String] = []   # IDs på aktiva synergier
+var active_relics:    Array[Dictionary] = []  # Hela relic-dicts
+
+var runs_played: int = 0
+var best_wave:   int = 0
 
 # ============================================================
 # Placement state
@@ -91,6 +100,44 @@ func set_inspected(tower: Dictionary) -> void:
 	tower_inspected.emit(tower)
 
 
+func _refresh_synergies() -> void:
+	# Räkna taggar från PLACERADE torn (ej bara unlockade)
+	var tag_counts: Dictionary = {}
+	for t in towers:
+		for tag: String in TowerDefs.TAGS[t.type]:
+			tag_counts[tag] = tag_counts.get(tag, 0) + 1
+
+	var prev: Array[String] = active_synergies.duplicate()
+	active_synergies.clear()
+
+	for syn: Dictionary in SynergyDefs.SYNERGIES:
+		var is_active := false
+
+		if syn.has("req_tags"):
+			is_active = true
+			for tag: String in syn.req_tags:
+				if tag_counts.get(tag, 0) == 0:
+					is_active = false
+					break
+
+		elif syn.has("req_count"):
+			is_active = true
+			for tag: String in syn.req_count:
+				if tag_counts.get(tag, 0) < (syn.req_count as Dictionary)[tag]:
+					is_active = false
+					break
+
+		if is_active:
+			active_synergies.append(syn.id)
+			if not prev.has(syn.id):
+				synergy_activated.emit(syn.id, syn.name, syn.icon)
+
+
+func acquire_relic(relic: Dictionary) -> void:
+	active_relics.append(relic)
+	relic_acquired.emit(relic)
+
+
 func reset() -> void:
 	towers.clear()
 	enemies.clear()
@@ -118,6 +165,9 @@ func reset() -> void:
 
 	unlocked_towers.clear()
 	draft_pending = false
+
+	active_synergies.clear()
+	active_relics.clear()
 
 	hover_pos   = Vector2(-1.0, -1.0)
 	hover_valid = false
