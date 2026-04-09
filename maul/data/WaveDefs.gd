@@ -42,13 +42,15 @@ const NAMES := [
 	"Soul Reaper",  "Surtr",        "Jormungandr",    "Ymir",
 ]
 
-# WC3 HP × 0.5, rebalanced: early smoothed, late doubled
+# HP-kurva: piecewise exponentiell (×1.25/wave W1–15, ×1.14/wave W16–38)
+# Modifierad för wave-typ: boss ×1.65, mass ×0.38, fly ×0.40, final boss ×2.5
+# Agentanalys: 4 st (WC3-expert, matteexpert, cost-designer, HP-balansör)
 const HP := [
-	    75,    110,    130,    215,    240,    210,    450,    550,  # W3: 155→130, W5: 290→240
-	   350,    700,    450,   1100,   1300,    900,   1750,   1000,  # W9: 400→350 (MASS)
-	  1400,   2500,   1600,   3500,   1400,   3250,   2500,   4500,  # W21: 2000→1400 (andrum efter boss)
-	  6000,   7000,   3500,   9000,  12000,  18000,   7500,   6000,  # W26: 4000→7000, W28: 5000→9000, W29: 7000→12000, W30: 9000→18000
-	 20000,   9000,   8000,  28000,  25000,  35000,  12500, 200000,  # W33: 10000→20000, W36: 12500→28000, W37: 11000→25000, W38: 15000→35000, W40: 60000→200000
+	    75,    100,    125,    150,    200,     75,    250,    350,  # W6: fly-introduktion (andrum)
+	   200,    550,    350,    800,   1000,    700,   1750,    800,  # W9: mass, W10: andrum, W16: mass-andrum
+	  2750,   2250,   1500,   5000,   5000,   3750,   2500,   5000,  # W17: magic immune, W19: fly, W20: boss
+	  9000,   7500,   4000,   9000,   9500,  18500,  13500,   7000,  # W25: boss, W27: fly, W30: boss-spike
+	 16000,  24000,   6500,  24000,  36000,  30000,   8000,  80000,  # W35: fly-boss, W37: invisible-spike, W40: final boss
 ]
 
 # WC3 move_speed × (30 / 270), rounded to int
@@ -68,22 +70,23 @@ const COUNT := [
 	 5,  6,  6,  5,  7,  5,  6,  1,
 ]
 
-# Gold per kill (from WC3 bounty values)
+# Gold per kill — reducerat ~50–65% för att hålla spelaren på 20–30 torn vid wave 30
+# (original var 3–4× för generöst: 92 torn vid wave 30, mål 20–30)
 const BOUNTY := [
-	  8,   9,  10,  11,  12,  13,  16,  17,
-	 14,  20,  18,  28,  26,  24,  35,  22,
-	 28,  45,  36,  55,  40,  52,  46,  65,
-	 80,  70,  75,  80,  90, 100,  95, 105,
-	115, 120, 130, 145, 140, 165, 180, 500,
+	  3,   3,   4,   4,   4,   5,   6,   7,
+	  6,   8,   7,  12,  11,  10,  15,  10,
+	 12,  20,  16,  25,  18,  24,  21,  31,
+	 38,  33,  36,  39,  44,  50,  48,  54,
+	 59,  62,  68,  77,  74,  89,  97, 275,
 ]
 
-# Gold bonus for completing the wave
+# Gold bonus för avklarad wave — samma reduktionsfaktor (0.35× early, 0.55× late)
 const BONUS := [
-	 35,  38,  42,  46,  50,  55,  60,  65,
-	 70,  80,  85,  92, 100, 108, 116, 125,
-	135, 145, 155, 220, 165, 175, 186, 198,
-	280, 212, 226, 240, 255, 370, 270, 286,
-	305, 325, 350, 375, 400, 425, 455, 1200,
+	 12,  14,  15,  17,  19,  20,  23,  25,
+	 27,  32,  34,  38,  41,  45,  49,  54,
+	 58,  64,  68,  99,  74,  81,  86,  93,
+	132, 100, 109, 118, 125, 185, 135, 146,
+	156, 169, 182, 199, 212, 230, 246, 660,
 ]
 
 # Whether the wave flies straight to exit (ignores maze)
