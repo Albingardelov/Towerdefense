@@ -112,6 +112,8 @@ static func _spawn_enemy(item: Dictionary, cell: int) -> void:
 	var hp:       float = wd.hp
 	var is_boss:  bool  = (etype == 2 or etype == 3)
 	var flying:   bool  = (etype == 1 or etype == 3)
+	var armor:    int   = int(wd.armor)
+	var special:  int   = int(wd.special)
 
 	var entry    := Pathfinder.map_entries[entry_idx]
 	var entry_px := Vector2((entry.x + 0.5) * cell, (entry.y + 0.5) * cell)
@@ -126,6 +128,8 @@ static func _spawn_enemy(item: Dictionary, cell: int) -> void:
 			is_boss       = is_boss,
 			hp            = hp,
 			max_hp        = hp,
+			armor         = armor,
+			special       = special,
 			speed         = speed,
 			hit_flash     = 0.0,
 			dead          = false,
@@ -145,6 +149,8 @@ static func _spawn_enemy(item: Dictionary, cell: int) -> void:
 			is_boss        = is_boss,
 			hp             = hp,
 			max_hp         = hp,
+			armor          = armor,
+			special        = special,
 			speed          = speed,
 			hit_flash      = 0.0,
 			dead           = false,

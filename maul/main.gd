@@ -28,6 +28,27 @@ const COL_HP_FG   := Color(0.20, 0.85, 0.20)
 const PROJ_SPEED := 180.0
 
 # ============================================================
+# Balance debug + WC3-style armor table
+# ============================================================
+
+const _BALANCE_LOG_PREFIX := "[balance]"
+
+# attack_type order matches TowerDefs.ATTACK_*:
+# normal, pierce, magic, siege, chaos, hero
+# armor order matches WaveDefs.ARMOR_*:
+# unarmored, light, medium, heavy, fortified, divine
+const _ARMOR_MULT: Array[Array] = [
+	[1.00, 1.00, 0.75, 1.00, 0.70, 0.05], # normal
+	[1.50, 2.00, 1.00, 0.75, 0.35, 0.05], # pierce
+	[1.00, 0.75, 0.75, 2.00, 0.35, 0.05], # magic
+	[1.00, 0.50, 1.50, 1.00, 1.50, 0.05], # siege
+	[1.00, 1.00, 1.00, 1.00, 1.00, 1.00], # chaos
+	[1.00, 1.00, 1.00, 1.00, 0.50, 0.50], # hero
+]
+
+const _MAGIC_IMMUNE_MAGIC_MULT := 0.10
+
+# ============================================================
 # Nodes
 # ============================================================
 
@@ -200,6 +221,14 @@ func _unhandled_input(event: InputEvent) -> void:
 				if event.pressed:
 					_remove_at(to_local(event.position))
 					queue_redraw()
+		return
+
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_F8:
+			GameState.balance_debug_enabled = not GameState.balance_debug_enabled
+			_hud.show_status("Balance debug: %s" % ["ON" if GameState.balance_debug_enabled else "OFF"])
+			await get_tree().create_timer(1.2).timeout
+			_hud.show_status("")
 
 # ============================================================
 # Placement & selection
@@ -400,6 +429,7 @@ func _process(delta: float) -> void:
 		_hud.update_wave_preview(GameState.wave + 1)
 		if GameState.wave_countdown <= 0.0 and not GameState.current_path.is_empty():
 			WaveManager.start()
+			_balance_on_wave_start()
 		queue_redraw()
 		return
 
@@ -461,6 +491,7 @@ func _check_wave_end() -> void:
 			GameState.add_gold(bonus)
 		GameState.wave_completed.emit(GameState.wave, bonus)
 		_show_wave_complete_status(bonus)
+		_balance_on_wave_end(bonus)
 
 
 func _show_wave_complete_status(bonus: int) -> void:
@@ -685,7 +716,11 @@ func _tick_projectiles(delta: float) -> void:
 
 func _apply_damage(e: Dictionary, damage: float, creep_gold: int,
 		tower_type: int = -1) -> void:
-	e.hp -= damage
+	var prev_hp: float = e.hp
+	var applied: float = _apply_armor_and_special(damage, tower_type, e)
+	e.hp -= applied
+	if GameState.balance_debug_enabled and applied > 0.0:
+		GameState.balance_wave_damage += minf(prev_hp, applied)
 	# Applicera slow
 	if tower_type >= 0 and TowerDefs.SLOW[tower_type] > 0.0:
 		e["slow_factor"] = TowerDefs.SLOW[tower_type]
@@ -719,6 +754,119 @@ func _apply_damage(e: Dictionary, damage: float, creep_gold: int,
 		e["hit_flash"] = 0.0
 	else:
 		e["hit_flash"] = 0.15
+
+
+func _apply_armor_and_special(base_damage: float, tower_type: int, e: Dictionary) -> float:
+	if base_damage <= 0.0:
+		return 0.0
+
+	var attack_type: int = TowerDefs.ATTACK_NORMAL
+	if tower_type >= 0 and tower_type < TowerDefs.count():
+		attack_type = int(TowerDefs.ATTACK_TYPE[tower_type])
+
+	var armor_type: int = int(e.get("armor", WaveDefs.ARMOR_UNARMORED))
+	armor_type = clampi(armor_type, WaveDefs.ARMOR_UNARMORED, WaveDefs.ARMOR_DIVINE)
+
+	var mult: float = float(_ARMOR_MULT[attack_type][armor_type])
+
+	# Wave special: magic immune → reduce magic damage further.
+	# Keeps the identity without hard-immunity (0 damage) which can soft-lock builds.
+	var special: int = int(e.get("special", WaveDefs.SPECIAL_NONE))
+	if special == WaveDefs.SPECIAL_MAGIC_IMMUNE and attack_type == TowerDefs.ATTACK_MAGIC:
+		mult *= _MAGIC_IMMUNE_MAGIC_MULT
+
+	return base_damage * mult
+
+
+func _balance_on_wave_start() -> void:
+	if not GameState.balance_debug_enabled:
+		return
+	GameState.balance_wave_start_t = Time.get_ticks_msec() / 1000.0
+	GameState.balance_wave_damage = 0.0
+	GameState.balance_wave_gold_start = GameState.gold
+	GameState.balance_wave_escaped_start = GameState.escaped
+
+
+func _balance_on_wave_end(bonus_paid: int) -> void:
+	if not GameState.balance_debug_enabled:
+		return
+
+	var t_end: float = Time.get_ticks_msec() / 1000.0
+	var clear_time: float = maxf(0.001, t_end - GameState.balance_wave_start_t)
+
+	var wd := WaveDefs.get_wave(GameState.wave)
+	var count: int = int(wd.count)
+	var hp_unit: float = float(wd.hp)
+	var speed: float = float(wd.speed)
+
+	# Estimate L (px) as average path length over entries.
+	# For flying waves, use straight-line in->out distance.
+	var L_px: float = 0.0
+	var entries: Array = Pathfinder.map_entries
+	if bool(wd.flies):
+		for entry in entries:
+			var entry_px := Vector2((entry.x + 0.5) * CELL, (entry.y + 0.5) * CELL)
+			var exit_px  := Vector2((Pathfinder.map_exit_point.x + 0.5) * CELL,
+									(Pathfinder.map_exit_point.y + 0.5) * CELL)
+			L_px += entry_px.distance_to(exit_px)
+	else:
+		var n: int = maxi(1, GameState.current_paths.size())
+		for i in n:
+			var path: Array = GameState.current_paths[i]
+			if path.size() < 2:
+				continue
+			var len: float = 0.0
+			for j in range(path.size() - 1):
+				var a: Vector2i = path[j]
+				var b: Vector2i = path[j + 1]
+				len += Vector2(float(b.x - a.x), float(b.y - a.y)).length() * (CELL * 0.5)
+			L_px += len
+	L_px = L_px / float(maxi(1, entries.size()))
+
+	var spawn_time: float = float(maxi(0, count - 1)) * WaveManager.SPAWN_INTERVAL
+	var travel_time: float = L_px / maxf(1.0, speed)
+	var T: float = maxf(0.001, travel_time + spawn_time)
+
+	var hp_pool: float = float(count) * hp_unit
+
+	# "Effective HP" baseline vs NORMAL attack type (gives a stable reference).
+	var armor_type: int = int(wd.armor)
+	armor_type = clampi(armor_type, WaveDefs.ARMOR_UNARMORED, WaveDefs.ARMOR_DIVINE)
+	var k_norm: float = float(_ARMOR_MULT[TowerDefs.ATTACK_NORMAL][armor_type])
+	var hp_pool_eff_norm: float = hp_pool / maxf(0.0001, k_norm)
+
+	var dps_req_base: float = hp_pool / T
+	var dps_req_norm: float = hp_pool_eff_norm / T
+
+	var leaks: int = GameState.escaped - GameState.balance_wave_escaped_start
+	var gold_start: int = GameState.balance_wave_gold_start
+	var gold_end: int = GameState.gold
+	var gold_gained: int = gold_end - gold_start
+	var kill_income_est: int = int(wd.bounty) * int(GameState.wave_kills)
+
+	var tower_value: int = 0
+	for t in GameState.towers:
+		tower_value += int(TowerDefs.COST[t.type])
+	var tower_sell_value: int = int(float(tower_value) * 0.75)
+
+	print_debug("%s wave=%d name=%s special=%d flies=%s armor=%d count=%d hp=%.1f speed=%.1f" % [
+		_BALANCE_LOG_PREFIX, GameState.wave, String(wd.name), int(wd.special), str(bool(wd.flies)),
+		armor_type, count, hp_unit, speed
+	])
+	print_debug("%s L_px=%.0f T=%.2f travel=%.2f spawn=%.2f clear_time=%.2f" % [
+		_BALANCE_LOG_PREFIX, L_px, T, travel_time, spawn_time, clear_time
+	])
+	print_debug("%s hp_pool=%.0f hp_pool_eff_norm=%.0f dps_req_base=%.1f dps_req_norm=%.1f" % [
+		_BALANCE_LOG_PREFIX, hp_pool, hp_pool_eff_norm, dps_req_base, dps_req_norm
+	])
+	print_debug("%s dmg_dealt=%.0f dps_dealt=%.1f kills=%d leaks=%d" % [
+		_BALANCE_LOG_PREFIX, GameState.balance_wave_damage, GameState.balance_wave_damage / clear_time,
+		GameState.wave_kills, leaks
+	])
+	print_debug("%s gold_start=%d gold_end=%d gold_gained=%+d (bonus_paid=%d, kill_income_est=%d) tower_value=%d sell_value=%d" % [
+		_BALANCE_LOG_PREFIX, gold_start, gold_end, gold_gained, bonus_paid, kill_income_est,
+		tower_value, tower_sell_value
+	])
 
 # ============================================================
 # Drawing

@@ -30,6 +30,16 @@ var wave_spawn_queue: Array = []
 var wave_kills:       int   = 0    # kills this wave (for conditional wave bonus)
 
 # ============================================================
+# Balance debug (per-wave instrumentation)
+# ============================================================
+
+var balance_debug_enabled: bool = false
+var balance_wave_start_t: float = 0.0
+var balance_wave_damage: float = 0.0
+var balance_wave_gold_start: int = 0
+var balance_wave_escaped_start: int = 0
+
+# ============================================================
 # Wave state
 # ============================================================
 
@@ -179,6 +189,11 @@ func reset() -> void:
 	hover_valid = false
 	placing     = false
 	inspected   = {}
+
+	balance_wave_start_t      = 0.0
+	balance_wave_damage       = 0.0
+	balance_wave_gold_start   = gold
+	balance_wave_escaped_start = escaped
 
 	gold_changed.emit(gold)
 	escaped_changed.emit(escaped, max_escape)

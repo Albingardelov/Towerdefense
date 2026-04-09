@@ -1,5 +1,12 @@
 class_name TowerDefs
 
+const ATTACK_NORMAL := 0
+const ATTACK_PIERCE := 1
+const ATTACK_MAGIC  := 2
+const ATTACK_SIEGE  := 3
+const ATTACK_CHAOS  := 4
+const ATTACK_HERO   := 5
+
 const NAMES := [
 	"Destroyer", "Buzzz", "Aviar", "Hatchet", "Pure",
 	"Gjutjärnspannan", "Sous Vide", "Woken", "Morteln",
@@ -82,6 +89,30 @@ const FIRERATE := [
 	2.00, 0.80,
 	0.75, 0.35,
 	1.00,
+]
+
+const ATTACK_TYPE := [
+	ATTACK_PIERCE, # 0  Destroyer
+	ATTACK_SIEGE,  # 1  Buzzz (AOE)
+	ATTACK_PIERCE, # 2  Aviar
+	ATTACK_SIEGE,  # 3  Hatchet (AOE)
+	ATTACK_PIERCE, # 4  Pure
+	ATTACK_SIEGE,  # 5  Gjutjärnspannan (AOE)
+	ATTACK_MAGIC,  # 6  Sous Vide (DoT)
+	ATTACK_SIEGE,  # 7  Woken (AOE)
+	ATTACK_MAGIC,  # 8  Morteln (slow/aoe)
+	ATTACK_NORMAL, # 9  Göteborgs Rapé (slow)
+	ATTACK_MAGIC,  # 10 General White (DoT)
+	ATTACK_MAGIC,  # 11 Oden's Extreme (slow/aoe)
+	ATTACK_CHAOS,  # 12 Siberia (big single-hit)
+	ATTACK_MAGIC,  # 13 Ristretto (DoT)
+	ATTACK_MAGIC,  # 14 Cold Brew (DoT)
+	ATTACK_PIERCE, # 15 Chemex (anti-air multiplier)
+	ATTACK_PIERCE, # 16 Ernie Ball
+	ATTACK_SIEGE,  # 17 Tube Screamer (AOE)
+	ATTACK_SIEGE,  # 18 Roundhouse (AOE)
+	ATTACK_NORMAL, # 19 Elbow
+	ATTACK_MAGIC,  # 20 Hot Stone (DoT/slow)
 ]
 
 const COST := [
