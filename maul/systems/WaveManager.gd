@@ -11,6 +11,7 @@ static func start() -> void:
 	GameState.spawn_timer      = 0.0
 	GameState.wave_in_progress = true
 	GameState.game_started     = true
+	GameState.wave_kills       = 0
 
 	GameState.wave_spawn_queue.clear()
 	var wd := WaveDefs.get_wave(GameState.wave)

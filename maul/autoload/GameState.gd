@@ -27,6 +27,7 @@ var current_path:    Array = []
 var current_paths:   Array = []   # Array of paths, one per map entry
 var current_map:     int   = 0    # 0 = klassisk, 1 = mandala
 var wave_spawn_queue: Array = []
+var wave_kills:       int   = 0    # kills this wave (for conditional wave bonus)
 
 # ============================================================
 # Wave state
@@ -153,6 +154,7 @@ func reset() -> void:
 	current_path.clear()
 	current_paths.clear()
 	wave_spawn_queue.clear()
+	wave_kills        = 0
 
 	wave              = 0
 	wave_in_progress  = false

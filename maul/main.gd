@@ -44,6 +44,22 @@ var _world_env: WorldEnvironment
 var _has_drag:  bool = false   # true once a drag event was received this placement
 var _drag_right: bool = false  # false = offset left, true = offset right
 
+var _syn_ring_angle: float = 0.0   # rotates synergy rings over time
+
+# Synergy colors (matches SynergyDefs order)
+const SYN_COLORS: Dictionary = {
+	"slow_roast":       Color(1.0, 0.42, 0.10),  # ember orange
+	"disc_mastery":     Color(0.00, 0.90, 1.00),  # electric cyan
+	"caffeine_economy": Color(1.00, 0.85, 0.00),  # warm gold
+}
+
+# Which tags a tower needs to participate visually in each synergy
+const SYN_TAGS: Dictionary = {
+	"slow_roast":       ["slow", "dot"],
+	"disc_mastery":     ["disc"],
+	"caffeine_economy": ["kaffe"],
+}
+
 
 # ============================================================
 # Ready
@@ -387,6 +403,7 @@ func _process(delta: float) -> void:
 		queue_redraw()
 		return
 
+	_syn_ring_angle += delta * 0.4
 	WaveManager.tick_spawner(delta, CELL)
 	_tick_enemies(delta)
 	_tick_towers(delta)
@@ -437,8 +454,11 @@ func _check_wave_end() -> void:
 			and GameState.enemies.is_empty():
 		GameState.wave_in_progress = false
 		GameState.wave_countdown   = GameState.WAVE_INTERVAL
-		var bonus: int = WaveDefs.get_wave(GameState.wave).bonus
-		GameState.add_gold(bonus)
+		var wd_end := WaveDefs.get_wave(GameState.wave)
+		# Air waves: bonus only if player killed at least 1 enemy (has air towers)
+		var bonus: int = wd_end.bonus if (not wd_end.flies or GameState.wave_kills > 0) else 0
+		if bonus > 0:
+			GameState.add_gold(bonus)
 		GameState.wave_completed.emit(GameState.wave, bonus)
 		_show_wave_complete_status(bonus)
 
@@ -531,10 +551,25 @@ func _trigger_relic_draft() -> void:
 
 
 func _trigger_draft() -> void:
+	# Stratify pool by wave: early waves only see affordable towers
+	var wave := GameState.wave
+	var cost_cap: int
+	if wave <= 10:
+		cost_cap = 400
+	elif wave <= 20:
+		cost_cap = 600
+	else:
+		cost_cap = 9999
+
 	var pool: Array[int] = []
 	for i in TowerDefs.count():
-		if not GameState.unlocked_towers.has(i):
+		if not GameState.unlocked_towers.has(i) and TowerDefs.COST[i] <= cost_cap:
 			pool.append(i)
+	# Fallback: if pool is tiny, open to all unlockable towers
+	if pool.size() < 3:
+		for i in TowerDefs.count():
+			if not GameState.unlocked_towers.has(i) and not pool.has(i):
+				pool.append(i)
 	pool.shuffle()
 	var offer: Array[int] = pool.slice(0, mini(3, pool.size()))
 	GameState.draft_pending = true
@@ -667,6 +702,7 @@ func _apply_damage(e: Dictionary, damage: float, creep_gold: int,
 	if e.hp <= 0.0:
 		e.hp   = 0.0
 		e.dead = true
+		GameState.wave_kills += 1
 		var kg: int = creep_gold
 		if tower_type >= 0 and GameState.active_synergies.has("caffeine_economy") \
 				and TowerDefs.TAGS[tower_type].has("kaffe"):
@@ -708,6 +744,7 @@ func _draw() -> void:
 		if not GameState.inspected.is_empty() and is_same(t, GameState.inspected):
 			draw_rect(Rect2(t.pos.x * CELL, t.pos.y * CELL, t.sz.x * CELL, t.sz.y * CELL),
 				Color(1.0, 1.0, 1.0, 0.9), false, 2.0)
+		_draw_synergy_ring(t)
 
 	for c in GameState.corpses:
 		if _orc_death_tex:
@@ -798,6 +835,39 @@ func _draw() -> void:
 			draw_rect(fp_rect, COL_INVALID, false, 1.5)
 		_draw_tower(GameState.hover_pos, TowerDefs.SIZES[GameState.selected],
 			GameState.selected, 0.5 if GameState.hover_valid else 0.2)
+
+
+func _draw_synergy_ring(t: Dictionary) -> void:
+	if GameState.active_synergies.is_empty():
+		return
+	var tags: Array = TowerDefs.TAGS[t.type]
+	var active_colors: Array[Color] = []
+	for syn_id: String in GameState.active_synergies:
+		if not SYN_TAGS.has(syn_id) or not SYN_COLORS.has(syn_id):
+			continue
+		var needed: Array = SYN_TAGS[syn_id]
+		for need: String in needed:
+			if tags.has(need):
+				active_colors.append(SYN_COLORS[syn_id] as Color)
+				break
+	if active_colors.is_empty():
+		return
+
+	var cx: float = (t.pos.x + t.sz.x * 0.5) * CELL
+	var cy: float = (t.pos.y + t.sz.y * 0.5) * CELL
+	var center := Vector2(cx, cy)
+	var r: float = (maxi(t.sz.x, t.sz.y) * CELL) * 0.5 + 5.0
+	var n := active_colors.size()
+	var arc_span: float = TAU / n * 0.80   # 80% fill, 20% gap
+	for i in n:
+		var col: Color = active_colors[i]
+		var start: float = _syn_ring_angle + i * (TAU / n)
+		# Glow halo (wider, dimmer)
+		draw_arc(center, r + 2.0, start, start + arc_span, 32,
+			Color(col.r, col.g, col.b, 0.30), 3.0)
+		# Sharp ring
+		draw_arc(center, r, start, start + arc_span, 32,
+			Color(col.r, col.g, col.b, 0.90), 2.0)
 
 
 func _draw_bg() -> void:

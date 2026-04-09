@@ -39,6 +39,7 @@ var _relic_draft_overlay: Control
 var _relic_draft_cards: Array[Button] = []
 var _relic_strip_hbox: HBoxContainer
 var _toast_lbl: Label
+var _synergy_strip_lbl: Label
 var _wave_preview_lbl: Label
 var _info_card:          Control
 var _ic_name_lbl:        Label
@@ -421,6 +422,21 @@ func _build_ui() -> void:
 	_wave_preview_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_wave_preview_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cl.add_child(_wave_preview_lbl)
+
+	# Persistent synergy strip — bottom-left, shows active synergies
+	_synergy_strip_lbl = Label.new()
+	_synergy_strip_lbl.set_anchor(SIDE_LEFT,   0.0)
+	_synergy_strip_lbl.set_anchor(SIDE_RIGHT,  0.5)
+	_synergy_strip_lbl.set_anchor(SIDE_TOP,    1.0)
+	_synergy_strip_lbl.set_anchor(SIDE_BOTTOM, 1.0)
+	_synergy_strip_lbl.set_offset(SIDE_TOP,    -148)
+	_synergy_strip_lbl.set_offset(SIDE_BOTTOM, -112)
+	_synergy_strip_lbl.set_offset(SIDE_LEFT,   6)
+	_synergy_strip_lbl.add_theme_font_size_override("font_size", 11)
+	_synergy_strip_lbl.add_theme_color_override("font_color", Color(0.80, 0.80, 0.85))
+	_synergy_strip_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_synergy_strip_lbl.text = ""
+	cl.add_child(_synergy_strip_lbl)
 
 	# ── Tower info card (bottom-sheet, icke-blockerande) ─────────
 	_ic_backdrop = ColorRect.new()
@@ -1010,6 +1026,7 @@ func _on_game_restarted() -> void:
 	_update_best_label()
 	_start_screen.visible = true
 	_rebuild_relic_strip()
+	_rebuild_synergy_strip()
 
 
 func _on_tower_inspected(tower: Dictionary) -> void:
@@ -1342,6 +1359,25 @@ func _format_number(n: int) -> String:
 	return out
 
 
+func _relic_relevant_tag(effect: String) -> String:
+	match effect:
+		"disc_damage":     return "disc"
+		"slow_duration":   return "slow"
+		"guitar_firerate": return "gitarr"
+		"muay_range":      return "muay_thai"
+		"snus_pierce":     return "snus"
+		_:                 return ""   # wave_gold always relevant
+
+
+func _has_placed_tag(tag: String) -> bool:
+	if tag.is_empty():
+		return true
+	for t: Dictionary in GameState.towers:
+		if TowerDefs.TAGS[t.type].has(tag):
+			return true
+	return false
+
+
 func _on_relic_draft_ready(offer: Array[Dictionary]) -> void:
 	for i in _relic_draft_cards.size():
 		var card: Button = _relic_draft_cards[i]
@@ -1350,7 +1386,9 @@ func _on_relic_draft_ready(offer: Array[Dictionary]) -> void:
 			continue
 		var rel: Dictionary = offer[i]
 		card.visible = true
-		card.text = "%s\n%s\n\n%s" % [rel.icon, rel.name, rel.desc]
+		var relevant: bool = _has_placed_tag(_relic_relevant_tag(rel.get("effect", "")))
+		var status_line: String = "✅ Aktiv för dina torn" if relevant else "⚠️ Inga matchande torn"
+		card.text = "%s\n%s\n\n%s\n\n%s" % [rel.icon, rel.name, rel.desc, status_line]
 		card.add_theme_font_size_override("font_size", 13)
 		# Clear all existing connections on pressed signal
 		for conn in card.pressed.get_connections():
@@ -1395,6 +1433,19 @@ func _on_synergy_activated(_syn_id: String, syn_name: String, syn_icon: String) 
 			_toast_lbl.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2, a)),
 		1.0, 0.0, 0.6
 	)
+	_rebuild_synergy_strip()
+
+
+func _rebuild_synergy_strip() -> void:
+	if GameState.active_synergies.is_empty():
+		_synergy_strip_lbl.text = ""
+		return
+	var parts: Array[String] = []
+	for sid: String in GameState.active_synergies:
+		for syn: Dictionary in SynergyDefs.SYNERGIES:
+			if syn.id == sid:
+				parts.append("%s %s" % [syn.icon, syn.name])
+	_synergy_strip_lbl.text = "\n".join(parts)
 
 
 func _rebuild_relic_strip() -> void:
