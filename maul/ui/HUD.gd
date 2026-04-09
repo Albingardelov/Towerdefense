@@ -44,6 +44,7 @@ var _wave_preview_lbl: Label
 var _info_card:          Control
 var _ic_name_lbl:        Label
 var _ic_stats_lbl:       Label
+var _ic_lore_lbl:        Label
 var _ic_sell_price_lbl:  Label
 var _ic_sell_btn:        Button
 var _ic_anim_tween:      Tween
@@ -520,6 +521,14 @@ func _build_ui() -> void:
 	_ic_stats_lbl.add_theme_color_override("font_color", Color(0.78, 0.80, 0.88))
 	_ic_stats_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	ic_vbox.add_child(_ic_stats_lbl)
+
+	# Lore
+	_ic_lore_lbl = Label.new()
+	_ic_lore_lbl.add_theme_font_size_override("font_size", 12)
+	_ic_lore_lbl.add_theme_color_override("font_color", Color(0.52, 0.50, 0.60))
+	_ic_lore_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_ic_lore_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ic_vbox.add_child(_ic_lore_lbl)
 
 	var ic_sep := HSeparator.new()
 	var sep_sb := StyleBoxFlat.new()
@@ -1049,6 +1058,7 @@ func _on_tower_inspected(tower: Dictionary) -> void:
 	ic_style.border_color               = stroke
 	_info_card.add_theme_stylebox_override("panel", ic_style)
 	_ic_stats_lbl.text       = _format_tower_stats(type)
+	_ic_lore_lbl.text        = '"%s"' % TowerDefs.LORE[type]
 	_ic_sell_price_lbl.text  = "💰 Refund: %dg" % sell_price
 	_show_info_card()
 
