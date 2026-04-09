@@ -580,13 +580,19 @@ func _build_ui() -> void:
 	_draft_overlay.visible = false
 	cl.add_child(_draft_overlay)
 
-	var do_center := CenterContainer.new()
-	do_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_draft_overlay.add_child(do_center)
+	var do_outer := VBoxContainer.new()
+	do_outer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	do_outer.alignment = BoxContainer.ALIGNMENT_CENTER
+	_draft_overlay.add_child(do_outer)
+
+	var do_margin := MarginContainer.new()
+	do_margin.add_theme_constant_override("margin_left", 12)
+	do_margin.add_theme_constant_override("margin_right", 12)
+	do_outer.add_child(do_margin)
 
 	var do_vbox := VBoxContainer.new()
 	do_vbox.add_theme_constant_override("separation", 14)
-	do_center.add_child(do_vbox)
+	do_margin.add_child(do_vbox)
 
 	var do_title := Label.new()
 	do_title.text = "CHOOSE YOUR NEXT TOWER"
@@ -602,15 +608,16 @@ func _build_ui() -> void:
 	do_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	do_vbox.add_child(do_sub)
 
-	var do_cards_hbox := HBoxContainer.new()
-	do_cards_hbox.add_theme_constant_override("separation", 12)
-	do_vbox.add_child(do_cards_hbox)
+	var do_cards_vbox := VBoxContainer.new()
+	do_cards_vbox.add_theme_constant_override("separation", 10)
+	do_vbox.add_child(do_cards_vbox)
 
 	for _i in 3:
 		var card := Button.new()
-		card.custom_minimum_size = Vector2(128, 180)
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card.custom_minimum_size = Vector2(0, 90)
 		card.visible = false
-		do_cards_hbox.add_child(card)
+		do_cards_vbox.add_child(card)
 		_draft_cards.append(card)
 
 	# ── Relic draft overlay ───────────────────────────────────────
