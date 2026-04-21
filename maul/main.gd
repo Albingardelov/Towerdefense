@@ -1764,7 +1764,7 @@ func _draw_tower(pos: Vector2, sz: Vector2i, type: int, alpha: float, face_dir: 
 	# Discgolf-torn (typ 0–4): rita sprite sheet istället för geometri
 	if _discgolf_tex and type < 5:
 		var elapsed := _tower_anim_time - last_shot_time
-		var shot_interval := 1.0 / TowerDefs.FIRERATE[type]
+		var shot_interval: float = 1.0 / TowerDefs.FIRERATE[type]
 		var frame := 0
 		if elapsed < shot_interval:
 			frame = int(elapsed * TowerDefs.FIRERATE[type] * 9.0) % 9
@@ -1777,7 +1777,7 @@ func _draw_tower(pos: Vector2, sz: Vector2i, type: int, alpha: float, face_dir: 
 	# Chef-torn (typ 5–8): rita sprite sheet istället för geometri
 	if _chef_tex and type >= 5 and type <= 8:
 		var elapsed := _tower_anim_time - last_shot_time
-		var shot_interval := 1.0 / TowerDefs.FIRERATE[type]
+		var shot_interval: float = 1.0 / TowerDefs.FIRERATE[type]
 		var frame := 0
 		if elapsed < shot_interval:
 			frame = int(elapsed * TowerDefs.FIRERATE[type] * 9.0) % 9
