@@ -1770,7 +1770,7 @@ func _draw_tower(pos: Vector2, sz: Vector2i, type: int, alpha: float, face_dir: 
 
 	# Chef-torn (typ 5–8): rita sprite sheet istället för geometri
 	if _chef_tex and type >= 5 and type <= 8:
-		var frame: int = int(_tower_anim_time * 5.0) % 9
+		var frame: int = int(_tower_anim_time * TowerDefs.FIRERATE[type] * 9.0) % 9
 		var src := Rect2(frame * 92, face_dir * 92, 92, 92)
 		var half := 22.0
 		var dst := Rect2(cx - half, cy - half, half * 2.0, half * 2.0)
