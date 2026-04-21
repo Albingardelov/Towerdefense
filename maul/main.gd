@@ -89,6 +89,7 @@ var _drag_right: bool = false  # false = offset left, true = offset right
 var _syn_ring_angle:   float = 0.0
 var _tower_anim_time:  float = 0.0
 var _discgolf_tex:     Texture2D = null
+var _chef_tex:         Texture2D = null
 
 # Synergy colors (matches SynergyDefs order)
 const SYN_COLORS: Dictionary = {
@@ -151,6 +152,7 @@ func _ready() -> void:
 		# Tower textures no longer used — towers are drawn procedurally
 		_tower_texs.clear()
 		_discgolf_tex = load("res://assets/Discgolf/discgolf_sheet.png")
+		_chef_tex     = load("res://assets/Chef/chef_sheet.png")
 		_floor_tex = load("res://assets/Floor_Tileset/floor_tiles.png")
 
 		var env := Environment.new()
@@ -1764,6 +1766,15 @@ func _draw_tower(pos: Vector2, sz: Vector2i, type: int, alpha: float, face_dir: 
 		var half := 22.0  # 44px display — lite större än cellen (30px)
 		var dst := Rect2(cx - half, cy - half, half * 2.0, half * 2.0)
 		draw_texture_rect_region(_discgolf_tex, dst, src, Color(1.0, 1.0, 1.0, alpha))
+		return
+
+	# Chef-torn (typ 5–8): rita sprite sheet istället för geometri
+	if _chef_tex and type >= 5 and type <= 8:
+		var frame: int = int(_tower_anim_time * 5.0) % 9
+		var src := Rect2(frame * 92, face_dir * 92, 92, 92)
+		var half := 22.0
+		var dst := Rect2(cx - half, cy - half, half * 2.0, half * 2.0)
+		draw_texture_rect_region(_chef_tex, dst, src, Color(1.0, 1.0, 1.0, alpha))
 		return
 
 	match type:
