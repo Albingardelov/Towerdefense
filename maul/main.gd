@@ -314,8 +314,9 @@ func _handle_tap(local: Vector2) -> void:
 			pos      = GameState.hover_pos,
 			sz       = sz,
 			type     = GameState.selected,
-			cooldown = 0.0,
-			face_dir = 0,
+			cooldown        = 0.0,
+			face_dir        = 0,
+			last_shot_time  = -999.0,
 		})
 		GameState.spend_gold(TowerDefs.COST[GameState.selected])
 		GameState._refresh_synergies()
@@ -1235,7 +1236,8 @@ func _tick_towers(delta: float) -> void:
 				anim_time  = 0.0,
 				tower_type = t.type,
 			})
-			t.face_dir = _angle_to_dir8(atan2(nearest.pos.y - tc.y, nearest.pos.x - tc.x))
+			t.face_dir       = _angle_to_dir8(atan2(nearest.pos.y - tc.y, nearest.pos.x - tc.x))
+			t.last_shot_time = _tower_anim_time
 			var firerate: float = TowerDefs.FIRERATE[t.type]
 			for relic: Dictionary in GameState.active_relics:
 				if relic.effect == "guitar_firerate" \
@@ -1457,7 +1459,7 @@ func _draw() -> void:
 			0.0, TAU, 64, Color(1.0, 1.0, 1.0, 0.35), 1.5)
 
 	for t in GameState.towers:
-		_draw_tower(t.pos, t.sz, t.type, 1.0, t.get("face_dir", 0))
+		_draw_tower(t.pos, t.sz, t.type, 1.0, t.get("face_dir", 0), t.get("last_shot_time", -999.0))
 		if not GameState.inspected.is_empty() and is_same(t, GameState.inspected):
 			draw_rect(Rect2(t.pos.x * CELL, t.pos.y * CELL, t.sz.x * CELL, t.sz.y * CELL),
 				Color(1.0, 1.0, 1.0, 0.9), false, 2.0)
@@ -1748,7 +1750,7 @@ func _angle_to_dir8(angle: float) -> int:
 	return int(round(a / (PI * 0.25))) % 8
 
 
-func _draw_tower(pos: Vector2, sz: Vector2i, type: int, alpha: float, face_dir: int = 0) -> void:
+func _draw_tower(pos: Vector2, sz: Vector2i, type: int, alpha: float, face_dir: int = 0, last_shot_time: float = -999.0) -> void:
 	var px := pos.x * CELL
 	var py := pos.y * CELL
 	var pw := sz.x  * CELL
@@ -1761,16 +1763,24 @@ func _draw_tower(pos: Vector2, sz: Vector2i, type: int, alpha: float, face_dir: 
 
 	# Discgolf-torn (typ 0–4): rita sprite sheet istället för geometri
 	if _discgolf_tex and type < 5:
-		var frame: int = int(_tower_anim_time * 5.0) % 9  # 5 FPS, 9 frames
+		var elapsed := _tower_anim_time - last_shot_time
+		var shot_interval := 1.0 / TowerDefs.FIRERATE[type]
+		var frame := 0
+		if elapsed < shot_interval:
+			frame = int(elapsed * TowerDefs.FIRERATE[type] * 9.0) % 9
 		var src := Rect2(frame * 92, face_dir * 92, 92, 92)
-		var half := 22.0  # 44px display — lite större än cellen (30px)
+		var half := 22.0
 		var dst := Rect2(cx - half, cy - half, half * 2.0, half * 2.0)
 		draw_texture_rect_region(_discgolf_tex, dst, src, Color(1.0, 1.0, 1.0, alpha))
 		return
 
 	# Chef-torn (typ 5–8): rita sprite sheet istället för geometri
 	if _chef_tex and type >= 5 and type <= 8:
-		var frame: int = int(_tower_anim_time * TowerDefs.FIRERATE[type] * 9.0) % 9
+		var elapsed := _tower_anim_time - last_shot_time
+		var shot_interval := 1.0 / TowerDefs.FIRERATE[type]
+		var frame := 0
+		if elapsed < shot_interval:
+			frame = int(elapsed * TowerDefs.FIRERATE[type] * 9.0) % 9
 		var src := Rect2(frame * 92, face_dir * 92, 92, 92)
 		var half := 22.0
 		var dst := Rect2(cx - half, cy - half, half * 2.0, half * 2.0)
