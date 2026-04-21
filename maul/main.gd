@@ -49,6 +49,27 @@ const _ARMOR_MULT: Array[Array] = [
 const _MAGIC_IMMUNE_MAGIC_MULT := 0.10
 
 # ============================================================
+# Headless autoplay (balance runner)
+# ============================================================
+
+const _AUTOPLAY_OUT_DIR := "res://balance_logs/autoplay/"
+const _AUTOPLAY_OUT_PREFIX := "autoplay_runs_"
+var _autoplay_enabled: bool = false
+var _autoplay_runs: int = 0
+var _autoplay_seed_base: int = 1337
+var _autoplay_time_scale: float = 30.0
+var _autoplay_csv_path_abs: String = ""
+var _autoplay_csv: FileAccess = null
+var _autoplay_run_idx: int = 0
+var _autoplay_last_heartbeat_ms: int = 0
+var _autoplay_last_progress_ms: int = 0
+var _autoplay_last_wave_seen: int = 0
+var _autoplay_jsonl_path_abs: String = ""
+var _autoplay_jsonl: FileAccess = null
+var _autoplay_fast: bool = false
+var _autoplay_print_balance: bool = false
+
+# ============================================================
 # Nodes
 # ============================================================
 
@@ -65,7 +86,9 @@ var _world_env: WorldEnvironment
 var _has_drag:  bool = false   # true once a drag event was received this placement
 var _drag_right: bool = false  # false = offset left, true = offset right
 
-var _syn_ring_angle: float = 0.0   # rotates synergy rings over time
+var _syn_ring_angle:   float = 0.0
+var _tower_anim_time:  float = 0.0
+var _discgolf_tex:     Texture2D = null
 
 # Synergy colors (matches SynergyDefs order)
 const SYN_COLORS: Dictionary = {
@@ -87,12 +110,20 @@ const SYN_TAGS: Dictionary = {
 # ============================================================
 
 func _ready() -> void:
+	# Detect autoplay early so we can skip heavy init.
+	_autoplay_enabled = OS.get_cmdline_user_args().has("--autoplay")
+	_autoplay_fast = _autoplay_enabled and OS.get_cmdline_user_args().has("--fast")
+	_autoplay_print_balance = OS.get_cmdline_user_args().has("--autoplay_print_balance")
+
 	if OS.get_name() == "Windows" or OS.get_name() == "Linux" or OS.get_name() == "macOS":
 		get_window().size     = Vector2i(VIEWPORT_W, VIEWPORT_H)
 		get_window().min_size = Vector2i(VIEWPORT_W, VIEWPORT_H)
 
 	# Fit grid to actual viewport, leaving room for top/bottom bars
 	var vp_size := get_viewport_rect().size
+	if vp_size.x <= 1.0 or vp_size.y <= 1.0:
+		# Headless / early init fallback
+		vp_size = Vector2(VIEWPORT_W, VIEWPORT_H)
 	CELL = int(vp_size.x / COLS)
 	ROWS = int((vp_size.y - GRID_TOP - GRID_BOT) / CELL)
 	position = Vector2(0, GRID_TOP)
@@ -102,44 +133,46 @@ func _ready() -> void:
 
 	_font = ThemeDB.fallback_font
 
-	var sfx_start := AudioStreamPlayer.new()
-	sfx_start.stream = load("res://assets/Startsound.wav")
-	sfx_start.volume_db = 0.0
-	add_child(sfx_start)
-	sfx_start.play()
+	if not _autoplay_fast:
+		var sfx_start := AudioStreamPlayer.new()
+		sfx_start.stream = load("res://assets/Startsound.wav")
+		sfx_start.volume_db = 0.0
+		add_child(sfx_start)
+		sfx_start.play()
 
-	_sfx_shoot = AudioStreamPlayer.new()
-	_sfx_shoot.stream = load("res://assets/39459__the_bizniss__laser.wav")
-	_sfx_shoot.volume_db = -6.0
-	add_child(_sfx_shoot)
+		_sfx_shoot = AudioStreamPlayer.new()
+		_sfx_shoot.stream = load("res://assets/39459__the_bizniss__laser.wav")
+		_sfx_shoot.volume_db = -6.0
+		add_child(_sfx_shoot)
 
-	_proj_tex     = load("res://assets/Part 2/69.png")
-	_orc_walk_tex  = load("res://assets/Orc/Orc/Orc-Walk.png")
-	_orc_death_tex = load("res://assets/Orc/Orc/Orc-Death.png")
-	# Tower textures no longer used — towers are drawn procedurally
-	_tower_texs.clear()
-	_floor_tex = load("res://assets/Floor_Tileset/floor_tiles.png")
+		_proj_tex     = load("res://assets/Part 2/69.png")
+		_orc_walk_tex  = load("res://assets/Orc/Orc/Orc-Walk.png")
+		_orc_death_tex = load("res://assets/Orc/Orc/Orc-Death.png")
+		# Tower textures no longer used — towers are drawn procedurally
+		_tower_texs.clear()
+		_discgolf_tex = load("res://assets/Discgolf/discgolf_sheet.png")
+		_floor_tex = load("res://assets/Floor_Tileset/floor_tiles.png")
 
-	var env := Environment.new()
-	env.glow_enabled       = true
-	env.glow_normalized    = false
-	env.glow_intensity     = 3.5
-	env.glow_bloom         = 1.0
-	env.glow_hdr_threshold = 0.3
-	env.glow_hdr_scale     = 5.0
-	_world_env             = WorldEnvironment.new()
-	_world_env.environment = env
-	add_child(_world_env)
+		var env := Environment.new()
+		env.glow_enabled       = true
+		env.glow_normalized    = false
+		env.glow_intensity     = 3.5
+		env.glow_bloom         = 1.0
+		env.glow_hdr_threshold = 0.3
+		env.glow_hdr_scale     = 5.0
+		_world_env             = WorldEnvironment.new()
+		_world_env.environment = env
+		add_child(_world_env)
 
-	_hud = HUD.new()
-	_hud.tower_selected.connect(_select_tower)
-	_hud.start_wave_pressed.connect(_on_send_early)
-	_hud.difficulty_set.connect(_set_difficulty)
-	_hud.map_selected.connect(_on_map_selected)
-	_hud.clear_all_pressed.connect(_on_clear_all)
-	_hud.sell_tower_pressed.connect(_on_sell_tower)
-	_hud.drag_side_changed.connect(func(right: bool) -> void: _drag_right = right)
-	add_child(_hud)
+		_hud = HUD.new()
+		_hud.tower_selected.connect(_select_tower)
+		_hud.start_wave_pressed.connect(_on_send_early)
+		_hud.difficulty_set.connect(_set_difficulty)
+		_hud.map_selected.connect(_on_map_selected)
+		_hud.clear_all_pressed.connect(_on_clear_all)
+		_hud.sell_tower_pressed.connect(_on_sell_tower)
+		_hud.drag_side_changed.connect(func(right: bool) -> void: _drag_right = right)
+		add_child(_hud)
 
 	GameState.wave_completed.connect(func(wave_num: int, _bonus: int) -> void:
 		if wave_num % 10 == 0:
@@ -155,6 +188,8 @@ func _ready() -> void:
 	# Konfigurera klassisk karta som standard
 	_on_map_selected(0)
 	Pathfinder.rebuild(CELL)
+
+	_maybe_start_autoplay()
 
 # ============================================================
 # Input
@@ -224,9 +259,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_F8:
+		# NOTE: F8 is a common Godot editor shortcut (can stop/interrupt play).
+		# Use Ctrl+B (and F9 fallback) for balance debug.
+		if (event.keycode == KEY_B and event.ctrl_pressed) or event.keycode == KEY_F9:
 			GameState.balance_debug_enabled = not GameState.balance_debug_enabled
-			_hud.show_status("Balance debug: %s" % ["ON" if GameState.balance_debug_enabled else "OFF"])
+			if GameState.balance_debug_enabled:
+				GameState.balance_start_new_log()
+				var p1 := GameState.balance_log_path if not GameState.balance_log_path.is_empty() else "user://(failed)"
+				var p2 := GameState.balance_project_log_path if not GameState.balance_project_log_path.is_empty() else "project/(failed)"
+				_hud.show_status("Balance debug: ON (%s | %s)" % [p1, p2])
+			else:
+				_hud.show_status("Balance debug: OFF")
 			await get_tree().create_timer(1.2).timeout
 			_hud.show_status("")
 
@@ -270,6 +313,7 @@ func _handle_tap(local: Vector2) -> void:
 			sz       = sz,
 			type     = GameState.selected,
 			cooldown = 0.0,
+			face_dir = 0,
 		})
 		GameState.spend_gold(TowerDefs.COST[GameState.selected])
 		GameState._refresh_synergies()
@@ -420,27 +464,525 @@ func _remove_at(pixel: Vector2) -> void:
 # ============================================================
 
 func _process(delta: float) -> void:
+	if _autoplay_enabled:
+		# The autoplay loop drives wave countdown, drafting, and placement.
+		# We still tick the real simulation so gameplay stays identical.
+		_autoplay_tick()
+
 	if GameState.game_over:
 		return
 
 	if not GameState.wave_in_progress:
 		GameState.wave_countdown = maxf(0.0, GameState.wave_countdown - delta)
-		_hud.update_countdown(GameState.wave_countdown, GameState.wave + 1)
-		_hud.update_wave_preview(GameState.wave + 1)
+		if _hud:
+			_hud.update_countdown(GameState.wave_countdown, GameState.wave + 1)
+			_hud.update_wave_preview(GameState.wave + 1)
 		if GameState.wave_countdown <= 0.0 and not GameState.current_path.is_empty():
 			WaveManager.start()
 			_balance_on_wave_start()
-		queue_redraw()
+		if not _autoplay_fast:
+			queue_redraw()
 		return
 
-	_syn_ring_angle += delta * 0.4
+	_syn_ring_angle  += delta * 0.4
+	_tower_anim_time += delta
 	WaveManager.tick_spawner(delta, CELL)
 	_tick_enemies(delta)
 	_tick_towers(delta)
 	_tick_projectiles(delta)
 	_tick_vfx(delta)
 	_check_wave_end()
-	queue_redraw()
+	if not _autoplay_fast:
+		queue_redraw()
+
+
+func _maybe_start_autoplay() -> void:
+	var args := OS.get_cmdline_user_args()
+	_autoplay_enabled = args.has("--autoplay")
+	if not _autoplay_enabled:
+		return
+
+	_autoplay_runs = _parse_arg_int(args, "--runs=", 500)
+	_autoplay_seed_base = _parse_arg_int(args, "--seed_base=", 1337)
+	_autoplay_time_scale = _parse_arg_float(args, "--time_scale=", 30.0)
+	Engine.time_scale = _autoplay_time_scale
+
+	# Force classic + easy for all runs.
+	_on_map_selected(0)
+	_set_difficulty(0)
+
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_AUTOPLAY_OUT_DIR))
+	var stamp := _timestamp()
+	_autoplay_csv_path_abs = ProjectSettings.globalize_path("res://balance_logs/%s%s.csv" % [_AUTOPLAY_OUT_PREFIX, stamp])
+	_autoplay_csv = FileAccess.open(_autoplay_csv_path_abs, FileAccess.WRITE)
+	if not _autoplay_csv:
+		push_error("Autoplay: failed to open CSV: " + _autoplay_csv_path_abs)
+		_autoplay_enabled = false
+		return
+	_autoplay_csv.store_line("run_idx,seed,final_wave,escaped,gold_end,tower_value,unlocked_towers,relic_count,elapsed_sec,log_file")
+
+	_autoplay_jsonl_path_abs = ProjectSettings.globalize_path("res://balance_logs/%s%s.jsonl" % [_AUTOPLAY_OUT_PREFIX, stamp])
+	_autoplay_jsonl = FileAccess.open(_autoplay_jsonl_path_abs, FileAccess.WRITE)
+	if _autoplay_jsonl:
+		_autoplay_jsonl.store_line('{"type":"meta","runs":%d,"seed_base":%d,"time_scale":%.1f}' % [
+			_autoplay_runs, _autoplay_seed_base, _autoplay_time_scale
+		])
+
+	# Auto-pick drafts/relics (bypass HUD).
+	if not GameState.draft_ready.is_connected(_autoplay_on_draft_ready):
+		GameState.draft_ready.connect(_autoplay_on_draft_ready)
+	if not GameState.relic_draft_ready.is_connected(_autoplay_on_relic_draft_ready):
+		GameState.relic_draft_ready.connect(_autoplay_on_relic_draft_ready)
+
+	print_debug("[autoplay] enabled runs=%d seed_base=%d time_scale=%.1f csv=%s" % [
+		_autoplay_runs, _autoplay_seed_base, _autoplay_time_scale, _autoplay_csv_path_abs
+	])
+
+	_autoplay_run_idx = 0
+	_autoplay_last_heartbeat_ms = Time.get_ticks_msec()
+	_autoplay_last_progress_ms = _autoplay_last_heartbeat_ms
+	_autoplay_last_wave_seen = 0
+	_autoplay_start_run()
+
+
+func _autoplay_tick() -> void:
+	var now_ms: int = Time.get_ticks_msec()
+
+	# Heartbeat: print status so it's obvious we're still simulating.
+	if not _autoplay_fast and now_ms - _autoplay_last_heartbeat_ms >= 1500:
+		_autoplay_last_heartbeat_ms = now_ms
+		print_debug("[autoplay] run=%d/%d wave=%d in_wave=%s draft=%s q=%d enemies=%d gold=%d escaped=%d" % [
+			_autoplay_run_idx + 1,
+			_autoplay_runs,
+			GameState.wave,
+			str(GameState.wave_in_progress),
+			str(GameState.draft_pending),
+			GameState.wave_spawn_queue.size(),
+			GameState.enemies.size(),
+			GameState.gold,
+			GameState.escaped,
+		])
+
+	# Progress watchdog: if wave number doesn't change for a long time, flag it.
+	if GameState.wave != _autoplay_last_wave_seen:
+		_autoplay_last_wave_seen = GameState.wave
+		_autoplay_last_progress_ms = now_ms
+	elif not _autoplay_fast and now_ms - _autoplay_last_progress_ms >= 20000:
+		_autoplay_last_progress_ms = now_ms
+		print_debug("[autoplay][warn] no wave progress for 20s; likely stuck. in_wave=%s draft=%s q=%d enemies=%d" % [
+			str(GameState.wave_in_progress),
+			str(GameState.draft_pending),
+			GameState.wave_spawn_queue.size(),
+			GameState.enemies.size(),
+		])
+
+	# If the current run ended, advance to next.
+	if GameState.game_over:
+		_autoplay_finish_run()
+		_autoplay_run_idx += 1
+		if _autoplay_run_idx >= _autoplay_runs:
+			if _autoplay_csv:
+				_autoplay_csv.close()
+			if _autoplay_jsonl:
+				_autoplay_jsonl.close()
+			print_debug("[autoplay] done csv=" + _autoplay_csv_path_abs)
+			get_tree().quit(0)
+			return
+		_autoplay_start_run()
+		return
+
+	# Consider the run "complete" once wave 40 is cleared (the normal game does not
+	# auto-end on victory, but autoplay needs a terminal condition).
+	if not GameState.wave_in_progress \
+			and GameState.wave >= WaveDefs.count() \
+			and GameState.wave_spawn_queue.is_empty() \
+			and GameState.enemies.is_empty():
+		GameState.game_over = true
+		return
+
+	# Between waves: spend gold and send wave.
+	if not GameState.wave_in_progress and not GameState.draft_pending:
+		_autoplay_spend_gold_between_waves()
+		GameState.wave_countdown = 0.0
+
+
+func _autoplay_start_run() -> void:
+	var seed_val := _autoplay_seed_base + _autoplay_run_idx
+	seed(seed_val)
+
+	GameState.reset()
+	_on_map_selected(0)
+	_set_difficulty(0)
+	Pathfinder.rebuild(CELL)
+
+	GameState.balance_debug_enabled = true
+	var stamp := _timestamp()
+	var fname := "run_%04d_seed_%d_%s.log" % [_autoplay_run_idx + 1, seed_val, stamp]
+	var log_path_abs := ProjectSettings.globalize_path(_AUTOPLAY_OUT_DIR + fname)
+	GameState.balance_project_log_path = log_path_abs
+	GameState.balance_log_path = ""
+	var f := FileAccess.open(log_path_abs, FileAccess.WRITE)
+	if f:
+		f.store_line("[autoplay] run=%d seed=%d started=%s" % [_autoplay_run_idx + 1, seed_val, stamp])
+		f.close()
+
+	# Start immediately.
+	GameState.wave_countdown = 0.0
+
+
+func _autoplay_finish_run() -> void:
+	if not _autoplay_csv:
+		return
+	var seed_val := _autoplay_seed_base + _autoplay_run_idx
+	var tower_value := 0
+	for t in GameState.towers:
+		tower_value += int(TowerDefs.COST[t.type])
+	var elapsed_sec := Time.get_ticks_msec() / 1000.0
+	var row := "%d,%d,%d,%d,%d,%d,%d,%d,%.2f,%s" % [
+		_autoplay_run_idx + 1,
+		seed_val,
+		GameState.wave,
+		GameState.escaped,
+		GameState.gold,
+		tower_value,
+		GameState.unlocked_towers.size(),
+		GameState.active_relics.size(),
+		elapsed_sec,
+		GameState.balance_project_log_path.replace(",", "_"),
+	]
+	_autoplay_csv.store_line(row)
+	_autoplay_csv.flush()
+
+	# Write rich per-run summary (tower composition, unlocks, relics, synergies).
+	if _autoplay_jsonl:
+		var counts: Dictionary = {}
+		for t: Dictionary in GameState.towers:
+			var tt: int = int(t.type)
+			counts[tt] = int(counts.get(tt, 0)) + 1
+		var unlocked: Array = []
+		for u: int in GameState.unlocked_towers:
+			unlocked.append(u)
+		var relic_effects: Array[String] = []
+		for rel: Dictionary in GameState.active_relics:
+			relic_effects.append(String(rel.get("effect", "")))
+		var syn: Array[String] = []
+		for sid: String in GameState.active_synergies:
+			syn.append(sid)
+
+		var payload := {
+			"type": "run",
+			"run_idx": _autoplay_run_idx + 1,
+			"seed": _autoplay_seed_base + _autoplay_run_idx,
+			"final_wave": GameState.wave,
+			"escaped": GameState.escaped,
+			"gold_end": GameState.gold,
+			"tower_value": tower_value,
+			"tower_counts": counts, # tower_type -> count placed
+			"unlocked_towers": unlocked,
+			"relic_effects": relic_effects,
+			"synergies": syn,
+			"log_file": GameState.balance_project_log_path,
+		}
+		_autoplay_jsonl.store_line(JSON.stringify(payload))
+		_autoplay_jsonl.flush()
+
+
+func _autoplay_on_draft_ready(offer: Array[int]) -> void:
+	if offer.is_empty():
+		GameState.draft_pending = false
+		return
+	var best: int = offer[0]
+	var best_score: float = -INF
+	# Score each tower by predicted usefulness for the next few waves.
+	for t in offer:
+		var score := 0.0
+		var cost := float(TowerDefs.COST[t])
+		if cost <= 0.0:
+			continue
+		for ahead in range(1, 4):
+			var w := GameState.wave + ahead
+			if w > WaveDefs.count():
+				break
+			var ctx := _autoplay_wave_ctx(w)
+			var edps := _autoplay_effective_dps(t, ctx)
+			# Weight near-term waves more.
+			var wgt := 1.0 / float(ahead)
+			score += (edps / cost) * wgt
+			# Utility bonuses.
+			if bool(ctx.flies) and float(TowerDefs.AIR_MULT[t]) > 1.0:
+				score += 0.10 * wgt
+			if int(ctx.special) == WaveDefs.SPECIAL_MASS and bool(TowerDefs.AOE[t]):
+				score += 0.10 * wgt
+			if TowerDefs.SLOW[t] > 0.0:
+				score += 0.03 * wgt
+			if TowerDefs.DOT[t] > 0.0:
+				score += 0.02 * wgt
+		if score > best_score:
+			best_score = score
+			best = t
+	GameState.unlocked_towers.append(best)
+	GameState.draft_pending = false
+
+
+func _autoplay_on_relic_draft_ready(offer: Array[Dictionary]) -> void:
+	if offer.is_empty():
+		GameState.draft_pending = false
+		return
+	var best: Dictionary = offer[0]
+	var best_score: float = -INF
+	for rel in offer:
+		var effect := String(rel.get("effect", ""))
+		var score := 0.0
+		if effect == "wave_gold":
+			score += 3.0
+		# Prefer relevant tags to already-placed towers
+		var tag := _autoplay_relic_tag(effect)
+		if tag.is_empty() or _autoplay_has_placed_tag(tag):
+			score += 2.0
+		if effect in ["disc_damage", "guitar_firerate", "muay_range"]:
+			score += 1.0
+		if score > best_score:
+			best_score = score
+			best = rel
+	GameState.acquire_relic(best)
+	GameState.draft_pending = false
+
+
+func _autoplay_relic_tag(effect: String) -> String:
+	match effect:
+		"disc_damage":     return "disc"
+		"slow_duration":   return "slow"
+		"guitar_firerate": return "gitarr"
+		"muay_range":      return "muay_thai"
+		"snus_pierce":     return "snus"
+		_:                 return ""   # wave_gold always relevant
+
+
+func _autoplay_has_placed_tag(tag: String) -> bool:
+	if tag.is_empty():
+		return true
+	for t: Dictionary in GameState.towers:
+		if TowerDefs.TAGS[t.type].has(tag):
+			return true
+	return false
+
+
+func _autoplay_spend_gold_between_waves() -> void:
+	if GameState.unlocked_towers.is_empty():
+		return
+	var next_wave := GameState.wave + 1
+	var ctx := _autoplay_wave_ctx(next_wave)
+	var candidates := _autoplay_candidate_positions()
+
+	var placements := 0
+	while placements < 4:
+		var best := _autoplay_pick_placement(ctx, candidates)
+		if best.is_empty():
+			return
+		var ttype: int = int(best.type)
+		var pos: Vector2 = best.pos
+		if not _autoplay_try_place(ttype, pos):
+			# If placement failed due to race condition, remove and continue.
+			candidates.erase(pos)
+			continue
+		placements += 1
+
+
+func _autoplay_pick_placement(ctx: Dictionary, candidates: Array[Vector2]) -> Dictionary:
+	# Pick (tower_type, position) jointly by:
+	# 1) Maze value (path length gain)
+	# 2) Exposure (how much of the path is within range)
+	# 3) Effective DPS vs the next wave (armor/special aware)
+	if candidates.is_empty():
+		return {}
+
+	var cur_path: Array = GameState.current_path
+	var cur_len: int = cur_path.size()
+
+	var wave_num: int = int(ctx.wave)
+	var w_path: float = lerpf(8.0, 2.5, clampf(float(wave_num) / 20.0, 0.0, 1.0))
+	var w_expo: float = lerpf(0.08, 0.18, clampf(float(wave_num) / 30.0, 0.0, 1.0))
+	var w_dps:  float = lerpf(0.06, 0.20, clampf(float(wave_num) / 18.0, 0.0, 1.0))
+
+	var best_score := -INF
+	var best: Dictionary = {}
+
+	for ttype: int in GameState.unlocked_towers:
+		var cost_i: int = int(TowerDefs.COST[ttype])
+		if cost_i <= 0 or GameState.gold < cost_i:
+			continue
+
+		var eff_dps := _autoplay_effective_dps(ttype, ctx)
+		var dps_per_gold := eff_dps / maxf(1.0, float(cost_i))
+
+		# Role nudges: ensure we can hit air waves.
+		var role_bonus := 0.0
+		if bool(ctx.flies) and float(TowerDefs.AIR_MULT[ttype]) > 1.0:
+			role_bonus += 0.15
+		if int(ctx.special) == WaveDefs.SPECIAL_MASS and bool(TowerDefs.AOE[ttype]):
+			role_bonus += 0.10
+		if int(ctx.special) == WaveDefs.SPECIAL_MAGIC_IMMUNE and int(TowerDefs.ATTACK_TYPE[ttype]) != TowerDefs.ATTACK_MAGIC:
+			role_bonus += 0.08
+		if TowerDefs.SLOW[ttype] > 0.0:
+			role_bonus += 0.03
+
+		for pos in candidates:
+			var sz: Vector2i = TowerDefs.SIZES[ttype]
+			if not _can_place(pos, sz):
+				continue
+
+			var blocked := Pathfinder.build_blocked(pos, sz)
+			var entry: Vector2i = Pathfinder.map_entries[0] if not Pathfinder.map_entries.is_empty() else Pathfinder.ENTRY
+			var path := Pathfinder.bfs_path(entry, Pathfinder.map_exit_point, blocked)
+			if path.is_empty():
+				continue
+
+			var gain := maxi(0, path.size() - cur_len)
+			var exposure := _autoplay_path_exposure_points(path, pos, ttype)
+
+			# Combined score: build mazes early, shift toward DPS later.
+			var score := w_path * float(gain) \
+				+ w_expo * float(exposure) \
+				+ w_dps * dps_per_gold \
+				+ role_bonus
+
+			if score > best_score:
+				best_score = score
+				best = { type = ttype, pos = pos, gain = gain, exposure = exposure, dpspg = dps_per_gold }
+
+	return best
+
+
+func _autoplay_try_place(ttype: int, pos: Vector2) -> bool:
+	var sz: Vector2i = TowerDefs.SIZES[ttype]
+	if not _can_place(pos, sz):
+		return false
+	GameState.towers.append({
+		pos      = pos,
+		sz       = sz,
+		type     = ttype,
+		cooldown = 0.0,
+	})
+	GameState.spend_gold(int(TowerDefs.COST[ttype]))
+	GameState._refresh_synergies()
+	GameState.set_inspected({})
+	Pathfinder.rebuild(CELL)
+	return true
+
+
+func _autoplay_wave_ctx(wave_num: int) -> Dictionary:
+	if wave_num < 1:
+		wave_num = 1
+	if wave_num > WaveDefs.count():
+		wave_num = WaveDefs.count()
+	var wd := WaveDefs.get_wave(wave_num)
+	return {
+		wave = wave_num,
+		flies = bool(wd.flies),
+		armor = int(wd.armor),
+		special = int(wd.special),
+	}
+
+
+func _autoplay_effective_dps(ttype: int, ctx: Dictionary) -> float:
+	var base_dps: float = float(TowerDefs.DAMAGE[ttype]) * float(TowerDefs.FIRERATE[ttype])
+	var atk: int = int(TowerDefs.ATTACK_TYPE[ttype])
+	var armor: int = clampi(int(ctx.armor), WaveDefs.ARMOR_UNARMORED, WaveDefs.ARMOR_DIVINE)
+	var mult: float = float(_ARMOR_MULT[atk][armor])
+
+	# Magic immune waves reduce magic further.
+	if int(ctx.special) == WaveDefs.SPECIAL_MAGIC_IMMUNE and atk == TowerDefs.ATTACK_MAGIC:
+		mult *= _MAGIC_IMMUNE_MAGIC_MULT
+
+	# Air waves: apply air multiplier.
+	if bool(ctx.flies):
+		mult *= float(TowerDefs.AIR_MULT[ttype])
+
+	# Swarm waves: modest AOE uplift.
+	if int(ctx.special) == WaveDefs.SPECIAL_MASS and bool(TowerDefs.AOE[ttype]):
+		mult *= 1.12
+
+	return base_dps * mult
+
+
+func _autoplay_candidate_positions() -> Array[Vector2]:
+	# Candidate build spots: around the current shortest path, including half-cell offsets.
+	# This keeps search fast while still allowing real maze-building.
+	var out: Array[Vector2] = []
+	var seen := {}
+
+	var path: Array = GameState.current_path
+	if path.is_empty():
+		# Fallback: coarse grid
+		for y in range(0, ROWS, 2):
+			for x in range(0, COLS, 2):
+				var p := Vector2(float(x), float(y))
+				out.append(p)
+		return out
+
+	var step := maxi(6, int(path.size() / 60))
+	for i in range(0, path.size(), step):
+		var sp: Vector2i = path[i]
+		var cx := int(sp.x / 2)
+		var cy := int(sp.y / 2)
+		for dy in range(-2, 3):
+			for dx in range(-2, 3):
+				var bx := cx + dx
+				var by := cy + dy
+				if bx < 0 or by < 0 or bx >= COLS or by >= ROWS:
+					continue
+				for oy in [0.0, 0.5]:
+					for ox in [0.0, 0.5]:
+						var p := Vector2(float(bx) + ox, float(by) + oy)
+						var key := "%0.1f,%0.1f" % [p.x, p.y]
+						if seen.has(key):
+							continue
+						seen[key] = true
+						out.append(p)
+
+	# Shuffle a little so we don't always pick identical mazes for equal scores.
+	out.shuffle()
+	# Hard cap for speed.
+	if out.size() > 240:
+		out = out.slice(0, 240)
+	return out
+
+
+func _autoplay_path_exposure_points(path: Array, pos: Vector2, ttype: int) -> int:
+	# Count how many path sub-cells are within range (in sub-grid coordinates).
+	var cx: float = (pos.x + float(TowerDefs.SIZES[ttype].x) * 0.5) * 2.0
+	var cy: float = (pos.y + float(TowerDefs.SIZES[ttype].y) * 0.5) * 2.0
+	var r: float  = float(TowerDefs.RANGE[ttype]) * 2.0
+	var r2: float = r * r
+	var n := 0
+	for sp: Vector2i in path:
+		var dx := float(sp.x) - cx
+		var dy := float(sp.y) - cy
+		if dx * dx + dy * dy <= r2:
+			n += 1
+	return n
+
+
+func _parse_arg_int(args: PackedStringArray, prefix: String, fallback: int) -> int:
+	for a in args:
+		if a.begins_with(prefix):
+			return int(a.get_slice("=", 1))
+	return fallback
+
+
+func _parse_arg_float(args: PackedStringArray, prefix: String, fallback: float) -> float:
+	for a in args:
+		if a.begins_with(prefix):
+			return float(a.get_slice("=", 1))
+	return fallback
+
+
+func _timestamp() -> String:
+	var dt: Dictionary = Time.get_datetime_dict_from_system()
+	return "%04d-%02d-%02d_%02d-%02d-%02d" % [
+		int(dt.year), int(dt.month), int(dt.day),
+		int(dt.hour), int(dt.minute), int(dt.second),
+	]
 
 
 func _tick_vfx(delta: float) -> void:
@@ -475,7 +1017,8 @@ func _check_wave_end() -> void:
 		if GameState.wave > GameState.best_wave:
 			GameState.best_wave = GameState.wave
 		GameState.save_meta()
-		_hud.show_run_summary()
+		if _hud:
+			_hud.show_run_summary()
 		GameState.game_over_triggered.emit()
 		return
 
@@ -495,6 +1038,8 @@ func _check_wave_end() -> void:
 
 
 func _show_wave_complete_status(bonus: int) -> void:
+	if not _hud:
+		return
 	_hud.show_status("Wave %d done! +%dg" % [GameState.wave, bonus])
 	await get_tree().create_timer(2.5).timeout
 	_hud.show_status("")
@@ -608,12 +1153,24 @@ func _trigger_draft() -> void:
 
 
 func _give_starting_towers() -> void:
-	var all: Array[int] = []
+	# Ensure the player can actually start building.
+	# Starting towers are restricted to an "affordable" pool to avoid RNG-locking the run
+	# with only expensive towers.
+	var cost_cap := 250
+	var pool: Array[int] = []
 	for i in TowerDefs.count():
-		all.append(i)
-	all.shuffle()
-	for i in mini(2, all.size()):
-		GameState.unlocked_towers.append(all[i])
+		if TowerDefs.COST[i] <= cost_cap:
+			pool.append(i)
+
+	# Fallback: if the affordable pool is unexpectedly small, allow everything.
+	if pool.size() < 2:
+		pool.clear()
+		for i in TowerDefs.count():
+			pool.append(i)
+
+	pool.shuffle()
+	for i in mini(2, pool.size()):
+		GameState.unlocked_towers.append(pool[i])
 
 
 # ============================================================
@@ -630,7 +1187,7 @@ func _tick_towers(delta: float) -> void:
 		var range_px: float = TowerDefs.RANGE[t.type] * CELL
 		if GameState.active_synergies.has("disc_mastery") \
 				and TowerDefs.TAGS[t.type].has("disc"):
-			range_px *= 1.20
+			range_px *= 1.08
 		# Relic: Muay Thai +range
 		for relic: Dictionary in GameState.active_relics:
 			if relic.effect == "muay_range" \
@@ -676,13 +1233,15 @@ func _tick_towers(delta: float) -> void:
 				anim_time  = 0.0,
 				tower_type = t.type,
 			})
+			t.face_dir = _angle_to_dir8(atan2(nearest.pos.y - tc.y, nearest.pos.x - tc.x))
 			var firerate: float = TowerDefs.FIRERATE[t.type]
 			for relic: Dictionary in GameState.active_relics:
 				if relic.effect == "guitar_firerate" \
 						and TowerDefs.TAGS[t.type].has("gitarr"):
 					firerate *= relic.value
 			t.cooldown = 1.0 / firerate
-			_sfx_shoot.play()
+			if _sfx_shoot:
+				_sfx_shoot.play()
 
 
 func _tick_projectiles(delta: float) -> void:
@@ -849,24 +1408,32 @@ func _balance_on_wave_end(bonus_paid: int) -> void:
 		tower_value += int(TowerDefs.COST[t.type])
 	var tower_sell_value: int = int(float(tower_value) * 0.75)
 
-	print_debug("%s wave=%d name=%s special=%d flies=%s armor=%d count=%d hp=%.1f speed=%.1f" % [
+	var l1 := "%s wave=%d name=%s special=%d flies=%s armor=%d count=%d hp=%.1f speed=%.1f" % [
 		_BALANCE_LOG_PREFIX, GameState.wave, String(wd.name), int(wd.special), str(bool(wd.flies)),
 		armor_type, count, hp_unit, speed
-	])
-	print_debug("%s L_px=%.0f T=%.2f travel=%.2f spawn=%.2f clear_time=%.2f" % [
+	]
+	var l2 := "%s L_px=%.0f T=%.2f travel=%.2f spawn=%.2f clear_time=%.2f" % [
 		_BALANCE_LOG_PREFIX, L_px, T, travel_time, spawn_time, clear_time
-	])
-	print_debug("%s hp_pool=%.0f hp_pool_eff_norm=%.0f dps_req_base=%.1f dps_req_norm=%.1f" % [
+	]
+	var l3 := "%s hp_pool=%.0f hp_pool_eff_norm=%.0f dps_req_base=%.1f dps_req_norm=%.1f" % [
 		_BALANCE_LOG_PREFIX, hp_pool, hp_pool_eff_norm, dps_req_base, dps_req_norm
-	])
-	print_debug("%s dmg_dealt=%.0f dps_dealt=%.1f kills=%d leaks=%d" % [
+	]
+	var l4 := "%s dmg_dealt=%.0f dps_dealt=%.1f kills=%d leaks=%d" % [
 		_BALANCE_LOG_PREFIX, GameState.balance_wave_damage, GameState.balance_wave_damage / clear_time,
 		GameState.wave_kills, leaks
-	])
-	print_debug("%s gold_start=%d gold_end=%d gold_gained=%+d (bonus_paid=%d, kill_income_est=%d) tower_value=%d sell_value=%d" % [
+	]
+	var l5 := "%s gold_start=%d gold_end=%d gold_gained=%+d (bonus_paid=%d, kill_income_est=%d) tower_value=%d sell_value=%d" % [
 		_BALANCE_LOG_PREFIX, gold_start, gold_end, gold_gained, bonus_paid, kill_income_est,
 		tower_value, tower_sell_value
-	])
+	]
+
+	if (not _autoplay_enabled) or _autoplay_print_balance:
+		print_debug(l1)
+		print_debug(l2)
+		print_debug(l3)
+		print_debug(l4)
+		print_debug(l5)
+	GameState.balance_log_lines([l1, l2, l3, l4, l5, ""])
 
 # ============================================================
 # Drawing
@@ -888,7 +1455,7 @@ func _draw() -> void:
 			0.0, TAU, 64, Color(1.0, 1.0, 1.0, 0.35), 1.5)
 
 	for t in GameState.towers:
-		_draw_tower(t.pos, t.sz, t.type, 1.0)
+		_draw_tower(t.pos, t.sz, t.type, 1.0, t.get("face_dir", 0))
 		if not GameState.inspected.is_empty() and is_same(t, GameState.inspected):
 			draw_rect(Rect2(t.pos.x * CELL, t.pos.y * CELL, t.sz.x * CELL, t.sz.y * CELL),
 				Color(1.0, 1.0, 1.0, 0.9), false, 2.0)
@@ -1173,7 +1740,13 @@ func _tdraw(pts: PackedVector2Array, fill: Color, stroke: Color, w: float = 1.5)
 	draw_polyline(closed, stroke, w)
 
 
-func _draw_tower(pos: Vector2, sz: Vector2i, type: int, alpha: float) -> void:
+func _angle_to_dir8(angle: float) -> int:
+	# Sheet rows: 0=S, 1=SW, 2=W, 3=NW, 4=N, 5=NE, 6=E, 7=SE
+	var a := fmod(angle - PI * 0.5 + TAU * 2.0, TAU)
+	return int(round(a / (PI * 0.25))) % 8
+
+
+func _draw_tower(pos: Vector2, sz: Vector2i, type: int, alpha: float, face_dir: int = 0) -> void:
 	var px := pos.x * CELL
 	var py := pos.y * CELL
 	var pw := sz.x  * CELL
@@ -1183,6 +1756,15 @@ func _draw_tower(pos: Vector2, sz: Vector2i, type: int, alpha: float) -> void:
 	var fill:   Color = TowerDefs.FILL[type];   fill.a = alpha
 	var stroke: Color = TowerDefs.STROKE[type]; stroke.a = alpha
 	var r := CELL * 0.40
+
+	# Discgolf-torn (typ 0–4): rita sprite sheet istället för geometri
+	if _discgolf_tex and type < 5:
+		var frame: int = int(_tower_anim_time * 5.0) % 9  # 5 FPS, 9 frames
+		var src := Rect2(frame * 92, face_dir * 92, 92, 92)
+		var half := 22.0  # 44px display — lite större än cellen (30px)
+		var dst := Rect2(cx - half, cy - half, half * 2.0, half * 2.0)
+		draw_texture_rect_region(_discgolf_tex, dst, src, Color(1.0, 1.0, 1.0, alpha))
+		return
 
 	match type:
 		0:  # Destroyer — flying disc
