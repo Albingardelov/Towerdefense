@@ -46,7 +46,7 @@ const _ARMOR_MULT: Array[Array] = [
 	[1.00, 1.00, 1.00, 1.00, 0.50, 0.50], # hero
 ]
 
-const _MAGIC_IMMUNE_MAGIC_MULT := 0.10
+const _MAGIC_IMMUNE_MAGIC_MULT := 0.35
 
 # ============================================================
 # Headless autoplay (balance runner)
@@ -90,6 +90,7 @@ var _syn_ring_angle:   float = 0.0
 var _tower_anim_time:  float = 0.0
 var _discgolf_tex:     Texture2D = null
 var _chef_tex:         Texture2D = null
+var _guitar_tex:       Texture2D = null
 
 # Synergy colors (matches SynergyDefs order)
 const SYN_COLORS: Dictionary = {
@@ -153,6 +154,7 @@ func _ready() -> void:
 		_tower_texs.clear()
 		_discgolf_tex = load("res://assets/Discgolf/discgolf_sheet.png")
 		_chef_tex     = load("res://assets/Chef/chef_sheet.png")
+		_guitar_tex   = load("res://assets/Guitar/guitar_sheet.png")
 		_floor_tex = load("res://assets/Floor_Tileset/floor_tiles.png")
 
 		var env := Environment.new()
@@ -629,7 +631,8 @@ func _autoplay_start_run() -> void:
 		f.store_line("[autoplay] run=%d seed=%d started=%s" % [_autoplay_run_idx + 1, seed_val, stamp])
 		f.close()
 
-	# Start immediately.
+	# Spend starting gold before wave 1 fires.
+	_autoplay_spend_gold_between_waves()
 	GameState.wave_countdown = 0.0
 
 
@@ -1785,6 +1788,19 @@ func _draw_tower(pos: Vector2, sz: Vector2i, type: int, alpha: float, face_dir: 
 		var half := 22.0
 		var dst := Rect2(cx - half, cy - half, half * 2.0, half * 2.0)
 		draw_texture_rect_region(_chef_tex, dst, src, Color(1.0, 1.0, 1.0, alpha))
+		return
+
+	# Gitarr-torn (typ 16–17): rita sprite sheet istället för geometri
+	if _guitar_tex and type >= 16 and type <= 17:
+		var elapsed := _tower_anim_time - last_shot_time
+		var shot_interval: float = 1.0 / TowerDefs.FIRERATE[type]
+		var frame := 0
+		if elapsed < shot_interval:
+			frame = int(elapsed * TowerDefs.FIRERATE[type] * 9.0) % 9
+		var src := Rect2(frame * 92, face_dir * 92, 92, 92)
+		var half := 22.0
+		var dst := Rect2(cx - half, cy - half, half * 2.0, half * 2.0)
+		draw_texture_rect_region(_guitar_tex, dst, src, Color(1.0, 1.0, 1.0, alpha))
 		return
 
 	match type:
